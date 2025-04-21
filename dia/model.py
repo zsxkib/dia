@@ -208,8 +208,8 @@ class Dia:
         temperature: float = 1.3,
         top_p: float = 0.95,
         use_cfg_filter: bool = True,
-        use_torch_compile: bool = True,
-        cfg_filter_top_k: int = 100,
+        use_torch_compile: bool = False,
+        cfg_filter_top_k: int = 35,
         audio_prompt_path: str | None = None,
     ) -> np.ndarray:
         """
