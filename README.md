@@ -30,6 +30,13 @@ This will open a Gradio UI that you can work on.
 
 ```bash
 git clone https://github.com/nari-labs/dia.git
+cd dia && uv run app.py
+```
+
+or if you do not have `uv`:
+
+```bash
+git clone https://github.com/nari-labs/dia.git
 cd dia
 python -m venv .venv
 source .venv/bin/activate
