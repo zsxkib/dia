@@ -71,7 +71,7 @@ Dia has been tested on only GPUs (pytorch 2.0+, CUDA 12.6). CPU support is to be
 The initial run will take longer as the Descript Audio Codec also needs to be downloaded.
 
 On enterprise GPUs, Dia can generate audio in real-time. On older GPUs, inference time will be slower.
-For reference, on a A4000 GPU, Dia rougly generates 40 tokens/s (86 tokens equals 1 second of audio).
+For reference, on a A4000 GPU, Dia roughly generates 40 tokens/s (86 tokens equals 1 second of audio).
 `torch.compile` will increase speeds for supported GPUs.
 
 The full version of Dia requires around 10GB of VRAM to run. We will be adding a quantized version in the future.
