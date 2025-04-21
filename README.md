@@ -45,7 +45,7 @@ uv run app.py
 ```
 
 Note that the model was not fine-tuned on a specific voice. Hence, you will get different voices every time you run the model.
-You can keep speaker consistency by either adding an audio prompt (a guide coming soon), or fixing the seed.
+You can keep speaker consistency by either adding an audio prompt (a guide coming VERY soon - try it with the second example on Gradio for now), or fixing the seed.
 
 ## ⚙️ Usage
 
