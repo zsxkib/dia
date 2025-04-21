@@ -13,6 +13,8 @@ dependencies = [
     "soundfile>=0.13.1",
     "torch>=2.6.0",
     "torchaudio>=2.6.0",
+    "triton>=3.3.0 ; sys_platform == 'linux'",
+    "triton-windows>=3.2.0.post18 ; sys_platform == 'win32'",
 ]
 
 [tool.ruff]
@@ -27,3 +29,16 @@ line-length = 119
 
 [tool.ruff.lint.isort]
 lines-after-imports = 2
+
+[tool.uv.sources]
+torch = [
+  { index = "pytorch-cu126", marker = "sys_platform == 'linux' or sys_platform == 'win32'" },
+]
+torchvision = [
+  { index = "pytorch-cu126", marker = "sys_platform == 'linux' or sys_platform == 'win32'" },
+]
+
+[[tool.uv.index]]
+name = "pytorch-cu126"
+url = "https://download.pytorch.org/whl/cu126"
+explicit = true
