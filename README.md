@@ -44,6 +44,9 @@ pip install uv
 uv run app.py
 ```
 
+Note that the model was not fine-tuned on a specific voice. Hence, you will get different voices every time you run the model.
+You can keep speaker consistency by either adding an audio prompt (a guide coming soon), or fixing the seed.
+
 ## ⚙️ Usage
 
 ### As a Python Library
@@ -84,7 +87,7 @@ This project is licensed under the Apache License 2.0 - see the [LICENSE](LICENS
 
 ## ⚠️ Disclaimer
 
-This project offers a high-fidelity speech generation model intended solely for research and educational use. The following uses are **strictly forbidden**:
+This project offers a high-fidelity speech generation model intended for research and educational use. The following uses are **strictly forbidden**:
 
 - **Identity Misuse**: Do not produce audio resembling real individuals without permission.
 - **Deceptive Content**: Do not use this model to generate misleading content (e.g. fake news)
