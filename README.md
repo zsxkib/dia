@@ -33,7 +33,7 @@ git clone https://github.com/nari-labs/dia.git
 cd dia && uv run app.py
 ```
 
-or if you do not have `uv`:
+or if you do not have `uv` pre-installed:
 
 ```bash
 git clone https://github.com/nari-labs/dia.git
