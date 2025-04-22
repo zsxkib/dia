@@ -52,7 +52,6 @@ You can keep speaker consistency by either adding an audio prompt (a guide comin
 
 - Generate dialogue via `[S1]` and `[S2]` tag
 - Generate non-verbal like `(laughs)`, `(coughs)`, etc.
-  - We don't have a full list of non-verbals, find out yourself!
 - Voice cloning. See [`example/voice_clone.py`](example/voice_clone.py) for more information.
   - In the Hugging Face space, you can upload the audio you want to clone and place its transcript before your script. Make sure the transcript follows the required format. The model will then output only the content of your script.
 
