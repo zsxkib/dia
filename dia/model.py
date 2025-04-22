@@ -9,6 +9,14 @@ from .config import DiaConfig
 from .layers import DiaModel, KVCache
 
 
+def get_default_device():
+    if torch.cuda.is_available():
+        return torch.device("cuda")
+    elif hasattr(torch.backends, "mps") and torch.backends.mps.is_available():
+        return torch.device("mps")
+    return torch.device("cpu")
+
+
 def _sample_next_token(
     logits_BCxV: torch.Tensor,
     temperature: float,
@@ -49,30 +57,30 @@ def _sample_next_token(
 
 
 class Dia:
-    def __init__(self, config: DiaConfig, device: torch.device = torch.device("cuda")):
+    def __init__(self, config: DiaConfig, device: torch.device | None = None):
         """Initializes the Dia model.
 
         Args:
             config: The configuration object for the model.
-            device: The device to load the model onto.
+            device: The device to load the model onto. If None, will automatically select the best available device.
 
         Raises:
             RuntimeError: If there is an error loading the DAC model.
         """
         super().__init__()
         self.config = config
-        self.device = device
+        self.device = device if device is not None else get_default_device()
         self.model = DiaModel(config)
         self.dac_model = None
 
     @classmethod
-    def from_local(cls, config_path: str, checkpoint_path: str, device: torch.device = torch.device("cuda")) -> "Dia":
+    def from_local(cls, config_path: str, checkpoint_path: str, device: torch.device | None = None) -> "Dia":
         """Loads the Dia model from local configuration and checkpoint files.
 
         Args:
             config_path: Path to the configuration JSON file.
             checkpoint_path: Path to the model checkpoint (.pth) file.
-            device: The device to load the model onto.
+            device: The device to load the model onto. If None, will automatically select the best available device.
 
         Returns:
             An instance of the Dia model loaded with weights and set to eval mode.
@@ -88,20 +96,21 @@ class Dia:
         dia = cls(config, device)
 
         try:
-            dia.model.load_state_dict(torch.load(checkpoint_path, map_location=device))
+            state_dict = torch.load(checkpoint_path, map_location=dia.device)
+            dia.model.load_state_dict(state_dict)
         except FileNotFoundError:
             raise FileNotFoundError(f"Checkpoint file not found at {checkpoint_path}")
         except Exception as e:
             raise RuntimeError(f"Error loading checkpoint from {checkpoint_path}") from e
 
-        dia.model.to(device)
+        dia.model.to(dia.device)
         dia.model.eval()
         dia._load_dac_model()
         return dia
 
     @classmethod
     def from_pretrained(
-        cls, model_name: str = "nari-labs/Dia-1.6B", device: torch.device = torch.device("cuda")
+        cls, model_name: str = "nari-labs/Dia-1.6B", device: torch.device | None = None
     ) -> "Dia":
         """Loads the Dia model from a Hugging Face Hub repository.
 
@@ -110,7 +119,7 @@ class Dia:
 
         Args:
             model_name: The Hugging Face Hub repository ID (e.g., "NariLabs/Dia-1.6B").
-            device: The device to load the model onto.
+            device: The device to load the model onto. If None, will automatically select the best available device.
 
         Returns:
             An instance of the Dia model loaded with weights and set to eval mode.
