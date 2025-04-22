@@ -3,6 +3,8 @@
 <img src="https://raw.githubusercontent.com/nari-labs/dia/main/images/banner.png">
 </a>
 </p>
+
+> **Note**: This is a pip-installable fork of the original [Nari Labs Dia repository](https://github.com/nari-labs/dia).
 <p align="center">
 <a href="https://tally.so/r/meokbo" target="_blank"><img alt="Static Badge" src="https://img.shields.io/badge/Join-Waitlist-white?style=for-the-badge"></a>
 <a href="https://discord.gg/pgdB5YRe" target="_blank"><img src="https://img.shields.io/badge/Discord-Join%20Chat-7289DA?logo=discord&style=for-the-badge"></a>
@@ -115,6 +117,11 @@ By using this model, you agree to uphold relevant legal standards and ethical re
 - Docker support.
 - Optimize inference speed.
 - Add quantization for memory efficiency.
+
+## Examples
+
+Check out the [examples](examples/) directory for usage examples:
+- [Minimal example](examples/minimal/): A minimal example of using Dia in a separate project
 
 ## 🤝 Contributing
 
