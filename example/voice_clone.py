@@ -19,6 +19,6 @@ clone_from_audio = "simple.mp3"
 text_to_generate = "[S1] Hello, how are you? [S2] I'm good, thank you. [S1] What's your name? [S2] My name is Dia. [S1] Nice to meet you. [S2] Nice to meet you too."
 
 # It will only return the audio from the text_to_generate
-output = model.generate(clone_from_text + text_to_generate)
+output = model.generate(clone_from_text + text_to_generate, audio_prompt_path=clone_from_audio)
 
 sf.write("voice_clone.mp3", output, 44100)
