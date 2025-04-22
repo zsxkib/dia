@@ -1,6 +1,6 @@
 <p align="center">
 <a href="https://github.com/nari-labs/dia">
-<img src="./images/banner.png">
+<img src="./dia/static/images/banner.png">
 </a>
 </p>
 <p align="center">
@@ -27,6 +27,15 @@ We also provide a [demo page](https://yummy-fir-7a4.notion.site/dia) comparing o
 
 ## ⚡️ Quickstart
 
+### Install via pip
+
+```bash
+# Install directly from GitHub
+pip install git+https://github.com/nari-labs/dia.git
+```
+
+### Run the Gradio UI
+
 This will open a Gradio UI that you can work on.
 
 ```bash
@@ -41,8 +50,8 @@ git clone https://github.com/nari-labs/dia.git
 cd dia
 python -m venv .venv
 source .venv/bin/activate
-pip install uv
-uv run app.py
+pip install -e .
+python app.py
 ```
 
 Note that the model was not fine-tuned on a specific voice. Hence, you will get different voices every time you run the model.
