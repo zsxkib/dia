@@ -1,5 +1,5 @@
 [project]
-name = "dia-tts"
+name = "nari-tts"
 version = "0.1.0"
 description = "Dia - A text-to-speech model for dialogue generation"
 readme = "README.md"
@@ -7,9 +7,6 @@ requires-python = ">=3.10"
 license = {file = "LICENSE"}
 authors = [
     {name = "Nari Labs", email = "contact@narilabs.ai"}
-]
-maintainers = [
-    {name = "cccntu"}
 ]
 dependencies = [
     "descript-audio-codec>=1.0.0",
@@ -28,3 +25,7 @@ build-backend = "setuptools.build_meta"
 
 [tool.setuptools]
 packages = ["dia"]
+
+[project.urls]
+"Homepage" = "https://github.com/nari-labs/dia"
+"Bug Tracker" = "https://github.com/nari-labs/dia/issues"
