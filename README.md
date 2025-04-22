@@ -124,7 +124,7 @@ Join our [Discord Server](https://discord.gg/pgdB5YRe) for discussions.
 - We thank Jason Y. for providing help with data filtering.
 
 
-## ⭐ Start History
+## ⭐ Star History
 
 <a href="https://www.star-history.com/#nari-labs/dia&Date">
  <picture>
