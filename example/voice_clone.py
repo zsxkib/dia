@@ -6,7 +6,8 @@ from dia.model import Dia
 model = Dia.from_pretrained("nari-labs/Dia-1.6B")
 
 # You should put the transcript of the voice you want to clone
-# We will use the audio from simple.py as an example
+# We will use the audio created by running simple.py as an example.
+# Note that you will be REQUIRED TO RUN simple.py for this script to work.
 clone_from_text = "[S1] Dia is an open weights text to dialogue model. [S2] You get full control over scripts and voices. [S1] Wow. Amazing. (laughs) [S2] Try it now on Git hub or Hugging Face."
 clone_from_audio = "simple.mp3"
 
