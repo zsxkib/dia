@@ -10,7 +10,7 @@
 </p>
 <p align="center">
 <a href="https://huggingface.co/nari-labs/Dia-1.6B"><img src="https://huggingface.co/datasets/huggingface/badges/resolve/main/model-on-hf-lg-dark.svg" alt="Dataset on HuggingFace" height=42 ></a>
-<a href=""><img src="https://huggingface.co/datasets/huggingface/badges/resolve/main/open-in-hf-spaces-lg-dark.svg" alt="Space on HuggingFace" height=38></a>
+<a href="https://huggingface.co/spaces/nari-labs/Dia-1.6B"><img src="https://huggingface.co/datasets/huggingface/badges/resolve/main/open-in-hf-spaces-lg-dark.svg" alt="Space on HuggingFace" height=38></a>
 </p>
 
 Dia is a 1.6B parameter text to speech model created by Nari Labs.
@@ -21,6 +21,7 @@ To accelerate research, we are providing access to pretrained model checkpoints 
 
 We also provide a [demo page](https://yummy-fir-7a4.notion.site/dia) comparing our model to [ElevenLabs Studio](https://elevenlabs.io/studio) and [Sesame CSM-1B](https://github.com/SesameAILabs/csm).
 
+- (Update) We have a ZeroGPU Space running! Try it now [here](https://huggingface.co/spaces/nari-labs/Dia-1.6B). Thanks to the HF team for the support :)
 - Join our [discord server](https://discord.gg/pgdB5YRe) for community support and access to new features.
 - Play with a larger version of Dia: generate fun conversations, remix content, and share with friends. 🔮 Join the [waitlist](https://tally.so/r/meokbo) for early access.
 
@@ -110,5 +111,6 @@ Join our [Discord Server](https://discord.gg/pgdB5YRe) for discussions.
 
 - We thank the [Google TPU Research Cloud program](https://sites.research.google/trc/about/) for providing computation resources.
 - Our work was heavily inspired by [SoundStorm](https://arxiv.org/abs/2305.09636), [Parakeet](https://jordandarefsky.com/blog/2024/parakeet/), and [Descript Audio Codec](https://github.com/descriptinc/descript-audio-codec).
+- HuggingFace for providing the ZeroGPU Grant.
 - "Nari" is a pure Korean word for lily.
 - We thank Jason Y. for providing help with data filtering.
