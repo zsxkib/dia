@@ -122,3 +122,14 @@ Join our [Discord Server](https://discord.gg/pgdB5YRe) for discussions.
 - HuggingFace for providing the ZeroGPU Grant.
 - "Nari" is a pure Korean word for lily.
 - We thank Jason Y. for providing help with data filtering.
+
+
+## ⭐ Start History
+
+<a href="https://www.star-history.com/#nari-labs/dia&Date">
+ <picture>
+   <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/svg?repos=nari-labs/dia&type=Date&theme=dark" />
+   <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/svg?repos=nari-labs/dia&type=Date" />
+   <img alt="Star History Chart" src="https://api.star-history.com/svg?repos=nari-labs/dia&type=Date" />
+ </picture>
+</a>
