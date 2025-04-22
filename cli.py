@@ -30,14 +30,13 @@ def main():
         "--output", type=str, required=True, help="Path to save the generated audio file (e.g., output.wav)."
     )
 
-    model_group = parser.add_mutually_exclusive_group(required=True)
-    model_group.add_argument(
+    parser.add_argument(
         "--repo-id",
         type=str,
         default="nari-labs/Dia-1.6B",
         help="Hugging Face repository ID (e.g., nari-labs/Dia-1.6B).",
     )
-    model_group.add_argument(
+    parser.add_argument(
         "--local-paths", action="store_true", help="Load model from local config and checkpoint files."
     )
 
@@ -130,24 +129,10 @@ def main():
         )
         print("Audio generation complete.")
 
-        # Save audio
         print(f"Saving audio to {args.output}...")
-        if isinstance(output_audio, torch.Tensor):
-            output_audio = output_audio.cpu().numpy().squeeze()
-
-        if output_audio.ndim == 1:  # Ensure stereo if needed, or handle mono
-            output_audio = np.expand_dims(output_audio, axis=0)  # Example: make mono [1, N] if needed by soundfile
-        elif (
-            output_audio.ndim == 2 and output_audio.shape[0] > output_audio.shape[1]
-        ):  # Check if shape is [N, C] -> transpose to [C, N]
-            output_audio = output_audio.T
-
-        # Ensure output directory exists
         os.makedirs(os.path.dirname(args.output) or ".", exist_ok=True)
 
-        sf.write(
-            args.output, output_audio.squeeze(), sample_rate
-        )  # Squeeze might be needed if generate returns [1, N]
+        sf.write(args.output, output_audio, sample_rate)
         print(f"Audio successfully saved to {args.output}")
 
     except Exception as e:

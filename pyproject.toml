@@ -1,9 +1,13 @@
 [project]
 name = "nari-tts"
 version = "0.1.0"
-description = "Add your description here"
+description = "Dia - A text-to-speech model for dialogue generation"
 readme = "README.md"
 requires-python = ">=3.10"
+license = {file = "LICENSE"}
+authors = [
+    {name = "Nari Labs", email = "contact@narilabs.ai"}
+]
 dependencies = [
     "descript-audio-codec>=1.0.0",
     "gradio>=5.25.2",
@@ -16,6 +20,17 @@ dependencies = [
     "triton>=3.3.0 ; sys_platform == 'linux'",
     "triton-windows>=3.2.0.post18 ; sys_platform == 'win32'",
 ]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project.urls]
+"Homepage" = "https://github.com/nari-labs/dia"
+"Bug Tracker" = "https://github.com/nari-labs/dia/issues"
+
+[tool.hatch.build.targets.wheel]
+packages = ["dia"]
 
 [tool.ruff]
 # Never enforce `E501` (line length violations).
