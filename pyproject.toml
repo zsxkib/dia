@@ -20,15 +20,15 @@ dependencies = [
 ]
 
 [build-system]
-requires = ["setuptools>=61.0"]
-build-backend = "setuptools.build_meta"
-
-[tool.setuptools]
-packages = ["dia"]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
 
 [project.urls]
 "Homepage" = "https://github.com/nari-labs/dia"
 "Bug Tracker" = "https://github.com/nari-labs/dia/issues"
+
+[tool.hatch.build.targets.wheel]
+packages = ["dia"]
 
 [tool.ruff]
 # Never enforce `E501` (line length violations).
