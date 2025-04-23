@@ -109,9 +109,7 @@ class Dia:
         return dia
 
     @classmethod
-    def from_pretrained(
-        cls, model_name: str = "nari-labs/Dia-1.6B", device: torch.device | None = None
-    ) -> "Dia":
+    def from_pretrained(cls, model_name: str = "nari-labs/Dia-1.6B", device: torch.device | None = None) -> "Dia":
         """Loads the Dia model from a Hugging Face Hub repository.
 
         Downloads the configuration and checkpoint files from the specified
