@@ -39,6 +39,9 @@ print("Loading Nari model...")
 try:
     # Use the function from inference.py
     model = Dia.from_pretrained("nari-labs/Dia-1.6B", device=device)
+    # Ensure model's internal torch model is float32 on CPU to avoid dtype mismatch errors
+    if device.type == "cpu":
+        model.model.to(torch.float32)
 except Exception as e:
     print(f"Error loading Nari model: {e}")
     raise
@@ -167,6 +170,13 @@ def run_inference(
             # --- End slowdown ---
 
             print(f"Audio conversion successful. Final shape: {output_audio[1].shape}, Sample Rate: {output_sr}")
+            
+            # Explicitly convert to int16 to prevent Gradio warning
+            if output_audio[1].dtype == np.float32 or output_audio[1].dtype == np.float64:
+                audio_for_gradio = np.clip(output_audio[1], -1.0, 1.0)
+                audio_for_gradio = (audio_for_gradio * 32767).astype(np.int16)
+                output_audio = (output_sr, audio_for_gradio)
+                print("Converted audio to int16 for Gradio output.")
 
         else:
             print("\nGeneration finished, but no valid tokens were produced.")
@@ -355,11 +365,10 @@ with gr.Blocks(css=css) as demo:
     else:
         gr.Markdown("_(No examples configured or example prompt file missing)_")
 
-
 # --- Launch the App ---
 if __name__ == "__main__":
     print("Launching Gradio interface...")
-
+    
     # set `GRADIO_SERVER_NAME`, `GRADIO_SERVER_PORT` env vars to override default values
     # use `GRADIO_SERVER_NAME=0.0.0.0` for Docker
-    demo.launch(share=args.share)
+    demo.launch(server_name="0.0.0.0", share=args.share)
