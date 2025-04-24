@@ -356,6 +356,8 @@ class Dia:
         use_torch_compile: bool = False,
         cfg_filter_top_k: int = 35,
         audio_prompt: str | torch.Tensor | None = None,
+        audio_prompt_path: str | None = None,
+        use_cfg_filter: bool | None = None,
         verbose: bool = False,
     ) -> np.ndarray:
         audio_eos_value = self.config.data.audio_eos_value
@@ -364,6 +366,12 @@ class Dia:
         max_tokens = self.config.data.audio_length if max_tokens is None else max_tokens
         max_delay_pattern = max(delay_pattern)
         self.model.eval()
+
+        if audio_prompt_path:
+            print("Warning: audio_prompt_path is deprecated. Use audio_prompt instead.")
+            audio_prompt = audio_prompt_path
+        if use_cfg_filter is not None:
+            print("Warning: use_cfg_filter is deprecated.")
 
         if verbose:
             total_start_time = time.time()
