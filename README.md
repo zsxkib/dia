@@ -71,18 +71,16 @@ You can keep speaker consistency by either adding an audio prompt (a guide comin
 ### As a Python Library
 
 ```python
-import soundfile as sf
-
 from dia.model import Dia
 
 
-model = Dia.from_pretrained("nari-labs/Dia-1.6B")
+model = Dia.from_pretrained("nari-labs/Dia-1.6B", compute_dtype="float16")
 
 text = "[S1] Dia is an open weights text to dialogue model. [S2] You get full control over scripts and voices. [S1] Wow. Amazing. (laughs) [S2] Try it now on Git hub or Hugging Face."
 
-output = model.generate(text)
+output = model.generate(text, use_torch_compile=True, verbose=True)
 
-sf.write("simple.mp3", output, 44100)
+model.save_audio("simple.mp3", output)
 ```
 
 A pypi package and a working CLI tool will be available soon.
@@ -92,11 +90,15 @@ A pypi package and a working CLI tool will be available soon.
 Dia has been tested on only GPUs (pytorch 2.0+, CUDA 12.6). CPU support is to be added soon.
 The initial run will take longer as the Descript Audio Codec also needs to be downloaded.
 
-On enterprise GPUs, Dia can generate audio in real-time. On older GPUs, inference time will be slower.
-For reference, on a A4000 GPU, Dia roughly generates 40 tokens/s (86 tokens equals 1 second of audio).
-`torch.compile` will increase speeds for supported GPUs.
+These are the speed we benchmarked in RTX 4090.
 
-The full version of Dia requires around 12-13GB of VRAM to run. We will be adding a quantized version in the future.
+| precision | realtime factor w/ compile | realtime factor w/o compile | VRAM |
+|:-:|:-:|:-:|:-:|
+| `bfloat16` | x2.1 | x1.5 | ~10GB |
+| `float16` | x2.2 | x1.3 | ~10GB |
+| `float32` | x1 | x0.9 | ~13GB |
+
+We will be adding a quantized version in the future.
 
 If you don't have hardware available or if you want to play with bigger versions of our models, join the waitlist [here](https://tally.so/r/meokbo).
 
