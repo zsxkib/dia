@@ -43,6 +43,7 @@ ENV PYTHONUNBUFFERED=1 \
     PYTHONPATH=/app
 
 # Expose Gradio default port
+ENV GRADIO_SERVER_NAME="0.0.0.0"
 EXPOSE 7860
 
 # Entrypoint

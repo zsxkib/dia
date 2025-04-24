@@ -116,7 +116,7 @@ By using this model, you agree to uphold relevant legal standards and ethical re
 
 ## 🔭 TODO / Future Work
 
-- Docker support.
+- Docker support for ARM architecture and MacOS.
 - Optimize inference speed.
 - Add quantization for memory efficiency.
 

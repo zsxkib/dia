@@ -42,6 +42,7 @@ ENV PYTHONUNBUFFERED=1 \
     LD_LIBRARY_PATH=/usr/local/cuda/lib64:/usr/local/cuda-12.1/lib64:${LD_LIBRARY_PATH}
 
 # Expose Gradio default port
+ENV GRADIO_SERVER_NAME="0.0.0.0"
 EXPOSE 7860
 
 # Entrypoint
