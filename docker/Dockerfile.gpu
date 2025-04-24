@@ -1,6 +1,6 @@
-# Dockerfile.gpu - Robust GPU Deployment for DIA using Official PyTorch Image
+# Dockerfile.gpu - GPU deployment for DIA
 # --------------------------------------------------
-# Build: docker build -f Dockerfile.gpu -t dia-gpu .
+# Build: docker build . -f docker/Dockerfile.gpu -t dia-gpu
 # Run:   docker run --rm --gpus all -p 7860:7860 dia-gpu
 # Requires NVIDIA Container Toolkit on host.
 

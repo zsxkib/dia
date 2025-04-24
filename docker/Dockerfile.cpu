@@ -1,9 +1,7 @@
 # Dockerfile.cpu - CPU-only deployment for DIA
 # --------------------------------------------------
-# Build with:
-#   docker build -f Dockerfile.cpu -t dia-cpu .
-# Run with:
-#   docker run --rm -p 7860:7860 dia-cpu
+# Build: docker build . -f docker/Dockerfile.cpu -t dia-cpu
+# Run:   docker run --rm -p 7860:7860 dia-cpu
 
 FROM python:3.10-slim
 
