@@ -1,10 +1,9 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+from huggingface_hub import PyTorchModelHubMixin
 from torch import Tensor
 from torch.nn import RMSNorm
-
-from huggingface_hub import PyTorchModelHubMixin
 
 from .config import DiaConfig
 from .state import DecoderInferenceState, EncoderInferenceState, KVCache
@@ -48,7 +47,6 @@ class DenseGeneral(nn.Module):
 
         factory_kwargs = {"device": device, "dtype": weight_dtype}
         self.weight = nn.Parameter(torch.empty(self.kernel_shape, **factory_kwargs))
-        self.register_parameter("bias", None)
 
     def forward(self, inputs: Tensor) -> Tensor:
         norm_axis = _normalize_axes(self.axis, inputs.ndim)
@@ -112,31 +110,23 @@ class RotaryEmbedding(nn.Module):
         self.embedding_dims = embedding_dims
         self.min_timescale = min_timescale
         self.max_timescale = max_timescale
-        self.dtype = dtype
+        self.compute_dtype = dtype
 
         half_embedding_dim = embedding_dims // 2
         fraction = (2.0 * torch.arange(0, half_embedding_dim)) / embedding_dims
-        self.register_buffer(
-            "timescale",
-            self.min_timescale * (self.max_timescale / self.min_timescale) ** fraction,
-            persistent=False,
-        )
-
-    def extra_repr(self) -> str:
-        s = f"{self.timescale.shape}"
-        return s
+        timescale = (self.min_timescale * (self.max_timescale / self.min_timescale) ** fraction).to(torch.float32)
+        self.register_buffer("timescale", timescale, persistent=False)
 
     def forward(self, inputs: torch.Tensor, position: torch.Tensor):
         """Applies RoPE."""
         position = position.unsqueeze(-1).unsqueeze(-1)
-        timescale = self.timescale.to(inputs.device)
-        sinusoid_inp = position / timescale
-        sin = torch.sin(sinusoid_inp).to(inputs.dtype)
-        cos = torch.cos(sinusoid_inp).to(inputs.dtype)
-        first_half, second_half = torch.chunk(inputs, 2, dim=-1)
+        sinusoid_inp = position / self.timescale
+        sin = torch.sin(sinusoid_inp)
+        cos = torch.cos(sinusoid_inp)
+        first_half, second_half = torch.chunk(inputs.to(torch.float32), 2, dim=-1)
         first_part = first_half * cos - second_half * sin
         second_part = second_half * cos + first_half * sin
-        return torch.cat((first_part, second_part), dim=-1)
+        return torch.cat((first_part.to(self.compute_dtype), second_part.to(self.compute_dtype)), dim=-1)
 
 
 class Attention(nn.Module):
@@ -283,6 +273,7 @@ class EncoderLayer(nn.Module):
         model_config = config.model
         enc_config = config.model.encoder
         embed_dim = enc_config.n_embd
+        self.compute_dtype = compute_dtype
 
         self.pre_sa_norm = RMSNorm(
             embed_dim,
@@ -313,7 +304,8 @@ class EncoderLayer(nn.Module):
         state: EncoderInferenceState,
     ) -> torch.Tensor:
         residual = x
-        x_norm = self.pre_sa_norm(x)
+        x_norm = self.pre_sa_norm(x).to(self.compute_dtype)
+
         sa_out = self.self_attention(
             Xq=x_norm,
             Xkv=x_norm,
@@ -324,7 +316,7 @@ class EncoderLayer(nn.Module):
         x = residual + sa_out
 
         residual = x
-        x_norm = self.post_sa_norm(x)
+        x_norm = self.post_sa_norm(x).to(self.compute_dtype)
         mlp_out = self.mlp(x_norm)
         x = residual + mlp_out
 
@@ -339,6 +331,7 @@ class Encoder(nn.Module):
         self.config = config
         model_config = config.model
         enc_config = config.model.encoder
+        self.compute_dtype = compute_dtype
 
         self.embedding = nn.Embedding(
             model_config.src_vocab_size,
@@ -362,7 +355,7 @@ class Encoder(nn.Module):
         for layer in self.layers:
             x = layer(x, state)
 
-        x = self.norm(x)
+        x = self.norm(x).to(self.compute_dtype)
         return x
 
 
@@ -377,6 +370,7 @@ class DecoderLayer(nn.Module):
         enc_config = config.model.encoder
         dec_embed_dim = dec_config.n_embd
         enc_embed_dim = enc_config.n_embd
+        self.compute_dtype = compute_dtype
 
         # Norms
         self.pre_sa_norm = RMSNorm(
@@ -435,7 +429,7 @@ class DecoderLayer(nn.Module):
         prefill: bool = False,
     ) -> torch.Tensor:
         residual = x
-        x_norm = self.pre_sa_norm(x)
+        x_norm = self.pre_sa_norm(x).to(self.compute_dtype)
 
         sa_out = self.self_attention(
             Xq=x_norm,  # (2, 1, D)
@@ -451,7 +445,7 @@ class DecoderLayer(nn.Module):
         x = residual + sa_out
 
         residual = x
-        x_norm = self.pre_ca_norm(x)
+        x_norm = self.pre_ca_norm(x).to(self.compute_dtype)
         ca_out = self.cross_attention(
             Xq=x_norm,
             Xkv=state.enc_out,
@@ -463,7 +457,7 @@ class DecoderLayer(nn.Module):
         x = residual + ca_out
 
         residual = x
-        x_norm = self.pre_mlp_norm(x)
+        x_norm = self.pre_mlp_norm(x).to(self.compute_dtype)
         mlp_out = self.mlp(x_norm)
         x = residual + mlp_out
 
@@ -616,8 +610,8 @@ class DiaModel(
     license="apache-2.0",
     coders={
         DiaConfig: (
-            lambda x: x.dict(),
-            lambda data: DiaConfig.model_validate(**data),
+            lambda x: x.model_dump(),
+            lambda data: DiaConfig.model_validate(data),
         ),
     },
 ):

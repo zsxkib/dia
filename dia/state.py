@@ -54,7 +54,9 @@ class EncoderInferenceState:
         """Creates EtorchrInferenceParams from DiaConfig and a device."""
         device = cond_src.device
 
-        positions = torch.arange(config.data.text_length, device=device).to(torch.long).unsqueeze(0).expand(2, -1)
+        positions = (
+            torch.arange(config.data.text_length, dtype=torch.float32, device=device).unsqueeze(0).expand(2, -1)
+        )
         padding_mask = (cond_src != config.data.text_pad_value).to(device).expand(2, -1)
         attn_mask = create_attn_mask(padding_mask, padding_mask, device, is_causal=False)
 
@@ -162,7 +164,9 @@ class DecoderInferenceState:
     def prepare_step(self, step_from: int, step_to: int | None = None) -> None:
         if step_to is None:
             step_to = step_from + 1
-        self.dec_positions = torch.arange(step_from, step_to, device=self.device).unsqueeze(0).expand(2, -1)
+        self.dec_positions = (
+            torch.arange(step_from, step_to, dtype=torch.float32, device=self.device).unsqueeze(0).expand(2, -1)
+        )
 
 
 @dataclass

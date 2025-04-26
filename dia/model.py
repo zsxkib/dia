@@ -165,7 +165,9 @@ class Dia:
             FileNotFoundError: If config or checkpoint download/loading fails.
             RuntimeError: If there is an error loading the checkpoint.
         """
-        loaded_model = DiaModel.from_pretrained(model_name)
+        if isinstance(compute_dtype, str):
+            compute_dtype = ComputeDtype(compute_dtype)
+        loaded_model = DiaModel.from_pretrained(model_name, compute_dtype=compute_dtype.to_dtype())
         config = loaded_model.config
         dia = cls(config, compute_dtype, device)
 

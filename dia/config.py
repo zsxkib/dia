@@ -145,7 +145,7 @@ class DiaConfig(BaseModel, frozen=True):
     version: str = Field(default="1.0")
     model: ModelConfig
     # TODO: remove training. this is just for backward compatibility
-    training: TrainingConfig
+    training: TrainingConfig | None = Field(default=None)
     data: DataConfig
 
     def save(self, path: str) -> None:
