@@ -5,7 +5,6 @@ import dac
 import numpy as np
 import torch
 import torchaudio
-from huggingface_hub import hf_hub_download
 
 from .audio import apply_audio_delay, build_delay_indices, build_revert_indices, decode, revert_audio_delay
 from .config import DiaConfig
@@ -155,7 +154,8 @@ class Dia:
         repository ID and then loads the model.
 
         Args:
-            model_name: The Hugging Face Hub repository ID (e.g., "NariLabs/Dia-1.6B").
+            model_name: The Hugging Face Hub repository ID (e.g., "nari-labs/Dia-1.6B").
+            compute_dtype: The computation dtype to use.
             device: The device to load the model onto. If None, will automatically select the best available device.
 
         Returns:
@@ -165,9 +165,15 @@ class Dia:
             FileNotFoundError: If config or checkpoint download/loading fails.
             RuntimeError: If there is an error loading the checkpoint.
         """
-        config_path = hf_hub_download(repo_id=model_name, filename="config.json")
-        checkpoint_path = hf_hub_download(repo_id=model_name, filename="dia-v0_1.pth")
-        return cls.from_local(config_path, checkpoint_path, compute_dtype, device)
+        loaded_model = DiaModel.from_pretrained(model_name)
+        config = loaded_model.config
+        dia = cls(config, compute_dtype, device)
+
+        dia.model = loaded_model
+        dia.model.to(dia.device)
+        dia.model.eval()
+        dia._load_dac_model()
+        return dia
 
     def _load_dac_model(self):
         try:

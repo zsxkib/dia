@@ -4,6 +4,8 @@ import torch.nn.functional as F
 from torch import Tensor
 from torch.nn import RMSNorm
 
+from huggingface_hub import PyTorchModelHubMixin
+
 from .config import DiaConfig
 from .state import DecoderInferenceState, EncoderInferenceState, KVCache
 
@@ -606,7 +608,19 @@ class Decoder(nn.Module):
         return logits_BxTxCxV.to(torch.float32)
 
 
-class DiaModel(nn.Module):
+class DiaModel(
+    nn.Module,
+    PyTorchModelHubMixin,
+    repo_url="https://github.com/nari-labs/dia",
+    pipeline_tag="text-to-speech",
+    license="apache-2.0",
+    coders={
+        DiaConfig: (
+            lambda x: x.dict(),
+            lambda data: DiaConfig.model_validate(**data),
+        ),
+    },
+):
     """PyTorch Dia Model using DenseGeneral."""
 
     def __init__(self, config: DiaConfig, compute_dtype: torch.dtype):
