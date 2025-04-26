@@ -17,9 +17,9 @@ dependencies = [
     "safetensors>=0.5.3",
     "soundfile>=0.13.1",
     "torch==2.6.0",
-    "torchaudio>=2.6.0",
-    "triton>=3.2.0 ; sys_platform == 'linux'",
-    "triton-windows>=3.2.0.post18 ; sys_platform == 'win32'",
+    "torchaudio==2.6.0",
+    "triton==3.2.0 ; sys_platform == 'linux'",
+    "triton-windows==3.2.0.post18 ; sys_platform == 'win32'",
 ]
 
 [build-system]
