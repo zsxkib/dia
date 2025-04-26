@@ -144,7 +144,7 @@ class DiaConfig(BaseModel, frozen=True):
 
     version: str = Field(default="1.0")
     model: ModelConfig
-    # TODO: remove training. this is just for backwards-compatability
+    # TODO: remove training. this is just for backward compatibility
     training: TrainingConfig
     data: DataConfig
 
