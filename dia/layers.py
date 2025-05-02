@@ -199,6 +199,7 @@ class Attention(nn.Module):
         cache: KVCache | None = None,  # None in Encoder, KVCache in Decoder
         prefill: bool = False,
         is_causal: bool = False,
+        current_idx: torch.Tensor | None = None,
     ) -> tuple[torch.Tensor, tuple[torch.Tensor, torch.Tensor] | None]:
         """
         Performs attention calculation with optional KV caching.
@@ -246,7 +247,7 @@ class Attention(nn.Module):
                     attn_k, attn_v = Xk_BxKxSxH, Xv_BxKxSxH
                     cache.prefill(attn_k, attn_v)
                 else:
-                    attn_k, attn_v = cache.update(Xk_BxKxSxH, Xv_BxKxSxH)
+                    attn_k, attn_v = cache.update(Xk_BxKxSxH, Xv_BxKxSxH, current_idx)
 
         attn_output = F.scaled_dot_product_attention(
             Xq_BxNxTxH,
@@ -427,19 +428,23 @@ class DecoderLayer(nn.Module):
         self_attn_cache: KVCache | None = None,
         cross_attn_cache: KVCache | None = None,
         prefill: bool = False,
+        current_idx: int = 0,
     ) -> torch.Tensor:
         residual = x
         x_norm = self.pre_sa_norm(x).to(self.compute_dtype)
+
+        self_attn_mask = state.casual_attn_mask[None, None, current_idx]
 
         sa_out = self.self_attention(
             Xq=x_norm,  # (2, 1, D)
             Xkv=x_norm,  # (2, 1, D)
             q_positions=state.dec_positions,  # (2, 1)
             kv_positions=state.dec_positions,  # (2, 1)
-            attn_mask=None,
+            attn_mask=self_attn_mask,
             cache=self_attn_cache,
             prefill=prefill,
             is_causal=prefill,
+            current_idx=current_idx,
         )
 
         x = residual + sa_out
@@ -453,6 +458,7 @@ class DecoderLayer(nn.Module):
             kv_positions=state.enc_positions,
             attn_mask=state.dec_cross_attn_mask,
             cache=cross_attn_cache,
+            current_idx=current_idx,
         )
         x = residual + ca_out
 
@@ -526,6 +532,7 @@ class Decoder(nn.Module):
         self,
         tgt_ids_Bx1xC: torch.Tensor,  # [B, 1, C]
         state: DecoderInferenceState,
+        current_idx: int,
     ) -> torch.Tensor:
         """
         Performs a single decoding step, managing KV caches layer by layer.
@@ -549,6 +556,7 @@ class Decoder(nn.Module):
                 state,
                 self_attn_cache=self_cache,
                 cross_attn_cache=cross_cache,
+                current_idx=current_idx,
             )
 
         x = self.norm(x)
