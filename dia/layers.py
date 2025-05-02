@@ -242,12 +242,11 @@ class Attention(nn.Module):
             if cache is None:
                 attn_k = Xk_BxKxSxH
                 attn_v = Xv_BxKxSxH
+            elif prefill:
+                attn_k, attn_v = Xk_BxKxSxH, Xv_BxKxSxH
+                cache.prefill(attn_k, attn_v)
             else:
-                if prefill:
-                    attn_k, attn_v = Xk_BxKxSxH, Xv_BxKxSxH
-                    cache.prefill(attn_k, attn_v)
-                else:
-                    attn_k, attn_v = cache.update(Xk_BxKxSxH, Xv_BxKxSxH, current_idx)
+                attn_k, attn_v = cache.update(Xk_BxKxSxH, Xv_BxKxSxH, current_idx)
 
         attn_output = F.scaled_dot_product_attention(
             Xq_BxNxTxH,
@@ -456,7 +455,6 @@ class DecoderLayer(nn.Module):
             Xkv=state.enc_out,
             q_positions=state.dec_positions,
             kv_positions=state.enc_positions,
-            attn_mask=state.dec_cross_attn_mask,
             cache=cross_attn_cache,
             current_idx=current_idx,
         )
@@ -509,6 +507,7 @@ class Decoder(nn.Module):
         self,
         enc_out: torch.Tensor,  # (B, S, E)
         enc_positions: torch.Tensor,  # (B, S)
+        k_padding_mask: torch.Tensor | None = None,
     ) -> list[KVCache]:
         """
         Computes the Key and Value tensors for cross-attention for each layer from the encoder output.
@@ -523,6 +522,8 @@ class Decoder(nn.Module):
             k_proj = cross_attn_module.rotary_emb(k_proj, position=enc_positions)
             k = k_proj.transpose(1, 2)
             v = v_proj.transpose(1, 2)
+            if k_padding_mask is not None:
+                k = k.masked_fill(~k_padding_mask.unsqueeze(1).unsqueeze(3), 0.0)
 
             per_layer_kv_cache.append(KVCache.from_kv(k, v))
 

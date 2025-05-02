@@ -124,7 +124,6 @@ class DecoderInferenceState:
     enc_out: torch.Tensor
     enc_positions: torch.Tensor
     dec_positions: torch.Tensor
-    dec_cross_attn_mask: torch.Tensor
     self_attn_cache: list[KVCache]
     cross_attn_cache: list[KVCache]
     casual_attn_mask: torch.Tensor
@@ -143,9 +142,6 @@ class DecoderInferenceState:
         max_audio_len = config.data.audio_length
 
         dec_positions = torch.full((2, 1), fill_value=0, dtype=torch.int32, device=device)
-        tgt_padding_mask = torch.ones((2, 1), dtype=torch.bool, device=device)
-
-        dec_cross_attn_mask = create_attn_mask(tgt_padding_mask, enc_state.padding_mask, device, is_causal=False)
         causal_mask = torch.tril(torch.ones(max_audio_len, max_audio_len, dtype=torch.bool, device=device))
 
         self_attn_cache = [
@@ -165,7 +161,6 @@ class DecoderInferenceState:
             enc_out=enc_out,
             enc_positions=enc_state.positions,
             dec_positions=dec_positions,
-            dec_cross_attn_mask=dec_cross_attn_mask,
             self_attn_cache=self_attn_cache,
             cross_attn_cache=dec_cross_attn_cache,
             casual_attn_mask=causal_mask,

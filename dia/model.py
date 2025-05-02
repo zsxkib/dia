@@ -272,7 +272,9 @@ class Dia:
         enc_state = EncoderInferenceState.new(self.config, enc_input_cond)
         encoder_out = self.model.encoder(enc_input, enc_state)
 
-        dec_cross_attn_cache = self.model.decoder.precompute_cross_attn_cache(encoder_out, enc_state.positions)
+        dec_cross_attn_cache = self.model.decoder.precompute_cross_attn_cache(
+            encoder_out, enc_state.positions, enc_state.padding_mask
+        )
         dec_state = DecoderInferenceState.new(
             self.config, enc_state, encoder_out, dec_cross_attn_cache, self.compute_dtype
         )
