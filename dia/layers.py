@@ -252,7 +252,7 @@ class Attention(nn.Module):
             Xq_BxNxTxH,
             attn_k,
             attn_v,
-            attn_mask=attn_mask,
+            attn_mask=attn_mask if not is_causal else None,
             scale=1.0,
             enable_gqa=self.num_gqa_groups > 1,
             is_causal=is_causal,
