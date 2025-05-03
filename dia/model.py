@@ -94,6 +94,7 @@ class Dia:
         config: DiaConfig,
         compute_dtype: str | ComputeDtype = ComputeDtype.FLOAT32,
         device: torch.device | None = None,
+        load_dac: bool = True,
     ):
         """Initializes the Dia model.
 
@@ -101,6 +102,7 @@ class Dia:
             config: The configuration object for the model.
             compute_dtype: The computation dtype to use.
             device: The device to load the model onto. If None, will automatically select the best available device.
+            load_dac: Whether to load the DAC model.
 
         Raises:
             RuntimeError: If there is an error loading the DAC model.
@@ -114,6 +116,10 @@ class Dia:
         self.model: DiaModel = DiaModel(config, self.compute_dtype)
         self.dac_model = None
         self._compiled_step = None
+        self.load_dac = load_dac
+
+        if not self.load_dac:
+            print("Warning: DAC model will not be loaded. This is not recommended.")
 
         if torch.cuda.is_available():
             torch.backends.cuda.matmul.allow_tf32 = True
@@ -125,6 +131,7 @@ class Dia:
         checkpoint_path: str,
         compute_dtype: str | ComputeDtype = ComputeDtype.FLOAT32,
         device: torch.device | None = None,
+        load_dac: bool = True,
     ) -> "Dia":
         """Loads the Dia model from local configuration and checkpoint files.
 
@@ -133,6 +140,7 @@ class Dia:
             checkpoint_path: Path to the model checkpoint (.pth) file.
             compute_dtype: The computation dtype to use.
             device: The device to load the model onto. If None, will automatically select the best available device.
+            load_dac: Whether to load the DAC model.
 
         Returns:
             An instance of the Dia model loaded with weights and set to eval mode.
@@ -157,7 +165,8 @@ class Dia:
 
         dia.model.to(dia.device)
         dia.model.eval()
-        dia._load_dac_model()
+        if load_dac:
+            dia._load_dac_model()
         return dia
 
     @classmethod
@@ -166,6 +175,7 @@ class Dia:
         model_name: str = "nari-labs/Dia-1.6B",
         compute_dtype: str | ComputeDtype = ComputeDtype.FLOAT32,
         device: torch.device | None = None,
+        load_dac: bool = True,
     ) -> "Dia":
         """Loads the Dia model from a Hugging Face Hub repository.
 
@@ -176,6 +186,7 @@ class Dia:
             model_name: The Hugging Face Hub repository ID (e.g., "nari-labs/Dia-1.6B").
             compute_dtype: The computation dtype to use.
             device: The device to load the model onto. If None, will automatically select the best available device.
+            load_dac: Whether to load the DAC model.
 
         Returns:
             An instance of the Dia model loaded with weights and set to eval mode.
@@ -199,10 +210,19 @@ class Dia:
         dia.model = loaded_model  # Assign the already loaded model
         dia.model.to(dia.device)
         dia.model.eval()
-        dia._load_dac_model()
+        if load_dac:
+            dia._load_dac_model()
         return dia
 
     def _load_dac_model(self):
+        """Loads the Descript Audio Codec (DAC) model.
+
+        Downloads the DAC model if necessary and loads it onto the specified device.
+        Sets the DAC model to evaluation mode.
+
+        Raises:
+            RuntimeError: If downloading or loading the DAC model fails.
+        """
         try:
             dac_model_path = dac.utils.download()
             dac_model = dac.DAC.load(dac_model_path).to(self.device)
@@ -212,7 +232,17 @@ class Dia:
         self.dac_model = dac_model
 
     def _encode_text(self, text: str) -> torch.Tensor:
-        """Encodes the input text into a tensor of token IDs."""
+        """Encodes the input text string into a tensor of token IDs using byte-level encoding.
+
+        Special tokens [S1] and [S2] are replaced by their byte values. The resulting
+        sequence is truncated to the maximum configured text length.
+
+        Args:
+            text: The input text string.
+
+        Returns:
+            A tensor containing the encoded byte token IDs.
+        """
         max_len = self.config.data.text_length
 
         byte_text = text.encode("utf-8")
@@ -244,6 +274,23 @@ class Dia:
         return src_tokens
 
     def _prepare_audio_prompt(self, audio_prompts: list[torch.Tensor | None]) -> tuple[torch.Tensor, list[int]]:
+        """Prepares the audio prompt tensor for the decoder.
+
+        Handles padding, adds the beginning-of-sequence (BOS) token, applies the
+        delay pattern, and determines the number of prefill steps for each item
+        in the batch.
+
+        Args:
+            audio_prompts: A list of audio prompt tensors (encoded DAC frames) or None.
+                           Each tensor should have shape [T, C].
+
+        Returns:
+            A tuple containing:
+                - delayed_batch (torch.Tensor): The prepared audio prompt tensor with
+                  delays applied, shape [B, T_max_padded, C].
+                - prefill_steps (list[int]): A list containing the number of valid
+                  tokens (including BOS) for each prompt in the batch.
+        """
         num_channels = self.config.data.channels
         audio_bos_value = self.config.data.audio_bos_value
         delay_pattern = self.config.data.delay_pattern
@@ -292,6 +339,23 @@ class Dia:
         text: torch.Tensor,
         audio_prompts: list[torch.Tensor | None],
     ):
+        """Initializes the model state for generation.
+
+        Encodes the text input (conditional and unconditional), prepares the
+        encoder and decoder states (including KV caches and cross-attention),
+        prepares the audio prompt, and performs the initial decoder prefill steps
+        based on the audio prompts.
+
+        Args:
+            text: The padded text input tensor, shape [B, 1, T_text].
+            audio_prompts: A list of prepared audio prompt tensors or None.
+
+        Returns:
+            A tuple containing:
+                - dec_state (DecoderInferenceState): The initialized decoder state.
+                - dec_output (DecoderOutput): The initialized decoder output manager,
+                  containing the prefilled audio tokens.
+        """
         batch_size = text.shape[0]
 
         enc_input_uncond = torch.zeros_like(text)
@@ -331,6 +395,27 @@ class Dia:
         top_k: int,
         current_idx: int,
     ) -> torch.Tensor:
+        """Performs a single step of the decoder inference.
+
+        Takes the tokens from the previous step, runs them through the decoder
+        (for both conditional and unconditional paths), applies classifier-free
+        guidance (CFG), samples the next token using temperature, top-p, and top-k
+        sampling, and applies constraints (e.g., preventing EOS in certain channels).
+
+        Args:
+            tokens_Bx1xC: The input tokens for the current step, shape [2*B, 1, C].
+                         Repeated for CFG (unconditional and conditional).
+            dec_state: The current state of the decoder (KV caches, etc.).
+            cfg_scale: The scale factor for classifier-free guidance.
+            temperature: The temperature for sampling.
+            top_p: The cumulative probability threshold for top-p sampling.
+            top_k: The number of top logits to consider for top-k sampling.
+            current_idx: The current generation step index.
+
+        Returns:
+            torch.Tensor: The sampled next tokens for each item in the batch,
+                          shape [B, C].
+        """
         B = tokens_Bx1xC.shape[0] // 2
 
         audio_eos_value = self.config.data.audio_eos_value
@@ -367,6 +452,24 @@ class Dia:
         return pred_BxC
 
     def _generate_output(self, generated_codes: torch.Tensor, lengths_Bx: torch.Tensor) -> list[np.ndarray]:
+        """Converts generated delayed codes into audio waveforms.
+
+        Reverts the delay pattern applied during generation, decodes the resulting
+        codebook using the DAC model (if loaded), and returns a list of audio
+        waveforms as NumPy arrays. If DAC is not loaded, returns the raw codebook indices.
+
+        Args:
+            generated_codes: The tensor of generated audio codes with delays,
+                             shape [B, T_gen, C].
+            lengths_Bx: A tensor containing the valid length of generated codes
+                        (excluding padding and BOS/EOS markers) for each item
+                        in the batch, shape [B].
+
+        Returns:
+            A list of NumPy arrays, where each array represents the generated audio
+            waveform for one item in the batch. If DAC is not loaded, returns the
+            raw, reverted codebook indices as NumPy arrays.
+        """
         num_channels = self.config.data.channels
         batch_size = generated_codes.shape[0]
         seq_length = generated_codes.shape[1]
@@ -395,13 +498,37 @@ class Dia:
 
         audios = []
 
-        for i in range(batch_size):
-            audio = decode(self.dac_model, codebook[i, : lengths_Bx[i], :].unsqueeze(0).transpose(1, 2))
-            audio_np = audio.squeeze().cpu().numpy()
-            audios.append(audio_np)
+        if self.load_dac:
+            for i in range(batch_size):
+                audio = decode(self.dac_model, codebook[i, : lengths_Bx[i], :].unsqueeze(0).transpose(1, 2))
+                audio_np = audio.squeeze().cpu().numpy()
+                audios.append(audio_np)
+        else:
+            for i in range(batch_size):
+                audios.append(codebook[i, : lengths_Bx[i], :].cpu().numpy())
         return audios
 
     def load_audio(self, audio_path: str) -> torch.Tensor:
+        """Loads and preprocesses an audio file for use as a prompt.
+
+        Loads the audio file, resamples it to the target sample rate if necessary,
+        preprocesses it using the DAC model's preprocessing, and encodes it into
+        DAC codebook indices.
+
+        Args:
+            audio_path: Path to the audio file.
+
+        Returns:
+            torch.Tensor: The encoded audio prompt as DAC codebook indices,
+                          shape [T, C].
+
+        Raises:
+            RuntimeError: If the DAC model is not loaded (`load_dac=False` during init).
+            FileNotFoundError: If the audio file cannot be found.
+            Exception: If there's an error during loading or processing.
+        """
+        if self.dac_model is None:
+            raise RuntimeError("DAC model is required for loading audio prompts but was not loaded.")
         audio, sr = torchaudio.load(audio_path, channels_first=True)  # C, T
         if sr != DEFAULT_SAMPLE_RATE:
             audio = torchaudio.functional.resample(audio, sr, DEFAULT_SAMPLE_RATE)
@@ -411,6 +538,15 @@ class Dia:
         return encoded_frame.squeeze(0).transpose(0, 1)
 
     def save_audio(self, path: str, audio: np.ndarray):
+        """Saves the generated audio waveform to a file.
+
+        Uses the soundfile library to write the NumPy audio array to the specified
+        path with the default sample rate.
+
+        Args:
+            path: The path where the audio file will be saved.
+            audio: The audio waveform as a NumPy array.
+        """
         import soundfile as sf
 
         sf.write(path, audio, DEFAULT_SAMPLE_RATE)
@@ -429,8 +565,38 @@ class Dia:
         audio_prompt_path: list[str | torch.Tensor | None] | str | torch.Tensor | None = None,
         use_cfg_filter: bool | None = None,
         verbose: bool = False,
-    ) -> np.ndarray:
-        # --- Boilerplate setup ---
+    ) -> np.ndarray | list[np.ndarray]:
+        """Generates audio corresponding to the input text.
+
+        Args:
+            text: The input text prompt, or a list of text prompts for batch generation.
+            max_tokens: The maximum number of audio tokens to generate per prompt.
+                        Defaults to the model's configured audio length if None.
+            cfg_scale: The scale factor for classifier-free guidance (CFG). Higher values
+                       lead to stronger guidance towards the text prompt.
+            temperature: The temperature for sampling. Higher values increase randomness.
+            top_p: The cumulative probability threshold for nucleus (top-p) sampling.
+            use_torch_compile: Whether to compile the generation steps using torch.compile.
+                               Can significantly speed up generation after the initial
+                               compilation overhead. Defaults to False.
+            cfg_filter_top_k: The number of top logits to consider during CFG filtering.
+                              (Note: This parameter name might be slightly misleading based
+                              on the code; it's used in the `_sample_next_token` function.)
+            audio_prompt: An audio prompt or list of prompts to condition the generation.
+                          Can be a file path (str), a pre-loaded tensor (DAC codes), or None.
+                          If a list, its length must match the batch size of the text input.
+            audio_prompt_path: (Deprecated) Use `audio_prompt` instead.
+            use_cfg_filter: (Deprecated) This parameter is no longer used.
+            verbose: If True, prints progress information during generation, including
+                     speed metrics.
+
+        Returns:
+            If a single text prompt was provided, returns a NumPy array containing the
+            generated audio waveform.
+            If a list of text prompts was provided, returns a list of NumPy arrays,
+            each corresponding to a prompt in the input list. Returns None for a
+            sequence if no audio was generated for it.
+        """
         batch_size = len(text) if isinstance(text, list) else 1
         audio_eos_value = self.config.data.audio_eos_value
         audio_pad_value = self.config.data.audio_pad_value
