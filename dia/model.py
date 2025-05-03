@@ -190,14 +190,23 @@ class Dia:
             raise RuntimeError("Failed to load DAC model") from e
         self.dac_model = dac_model
 
-    def _prepare_text_input(self, text: str) -> torch.Tensor:
-        """Encodes text prompt, pads, and creates attention mask and positions."""
-        text_pad_value = self.config.data.text_pad_value
+    def _encode_text(self, text: str) -> torch.Tensor:
+        """Encodes the input text into a tensor of token IDs."""
         max_len = self.config.data.text_length
 
         byte_text = text.encode("utf-8")
         replaced_bytes = byte_text.replace(b"[S1]", b"\x01").replace(b"[S2]", b"\x02")
         text_tokens = list(replaced_bytes)
+        return torch.tensor(
+            text_tokens[:max_len],
+            dtype=torch.long,
+            device=self.device,
+        )
+
+    def _pad_text_input(self, text_tokens: torch.Tensor) -> torch.Tensor:
+        """Pads the text input to the maximum length."""
+        text_pad_value = self.config.data.text_pad_value
+        max_len = self.config.data.text_length
 
         current_len = len(text_tokens)
         src_tokens = torch.full(
@@ -206,11 +215,7 @@ class Dia:
             dtype=torch.long,
             device=self.device,
         )
-        src_tokens[0, :current_len] = torch.tensor(
-            text_tokens[:max_len],
-            dtype=torch.long,
-            device=self.device,
-        )
+        src_tokens[0, :current_len] = text_tokens
         return src_tokens
 
     def _prepare_audio_prompt(self, audio_prompt: torch.Tensor | None) -> tuple[torch.Tensor, int]:
@@ -257,17 +262,10 @@ class Dia:
 
         return prefill, prefill_step
 
-    def _prepare_generation(self, text: str, audio_prompt: str | torch.Tensor | None, verbose: bool):
-        enc_input_cond = self._prepare_text_input(text)
+    def _prepare_generation(self, text_tokens: torch.Tensor, audio_prompt: torch.Tensor | None):
+        enc_input_cond = self._pad_text_input(text_tokens)
         enc_input_uncond = torch.zeros_like(enc_input_cond)
         enc_input = torch.cat([enc_input_uncond, enc_input_cond], dim=0)
-
-        if isinstance(audio_prompt, str):
-            audio_prompt = self.load_audio(audio_prompt)
-        prefill, prefill_step = self._prepare_audio_prompt(audio_prompt)
-
-        if verbose:
-            print("generate: data loaded")
 
         enc_state = EncoderInferenceState.new(self.config, enc_input_cond)
         encoder_out = self.model.encoder(enc_input, enc_state)
@@ -279,6 +277,7 @@ class Dia:
             self.config, enc_state, encoder_out, dec_cross_attn_cache, self.compute_dtype
         )
         dec_output = DecoderOutput.new(self.config, self.device)
+        prefill, prefill_step = self._prepare_audio_prompt(audio_prompt)
         dec_output.prefill(prefill, prefill_step)
 
         dec_step = prefill_step - 1
@@ -400,10 +399,13 @@ class Dia:
 
         if use_torch_compile and not hasattr(self, "_compiled"):
             # Compilation can take about a minute.
-            self._prepare_generation = torch.compile(self._prepare_generation, dynamic=True)
+            self._prepare_generation = torch.compile(self._prepare_generation, dynamic=True, fullgraph=True)
             self._decoder_step = torch.compile(self._decoder_step, fullgraph=True, mode="max-autotune")
             self._compiled = True
-        dec_state, dec_output = self._prepare_generation(text, audio_prompt, verbose)
+
+        if isinstance(audio_prompt, str):
+            audio_prompt = self.load_audio(audio_prompt)
+        dec_state, dec_output = self._prepare_generation(self._encode_text(text), audio_prompt)
         dec_step = dec_output.prefill_step - 1
         current_idx = torch.tensor([dec_step], device=self.device)
 
