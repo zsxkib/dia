@@ -152,7 +152,7 @@ class Dia:
         if config is None:
             raise FileNotFoundError(f"Config file not found at {config_path}")
 
-        dia = cls(config, compute_dtype, device)
+        dia = cls(config, compute_dtype, device, load_dac)
 
         try:
             state_dict = torch.load(checkpoint_path, map_location=dia.device)
@@ -204,7 +204,7 @@ class Dia:
             raise RuntimeError(f"Error loading model from Hugging Face Hub ({model_name})") from e
 
         config = loaded_model.config  # Get config from the loaded model
-        dia = cls(config, compute_dtype, device)
+        dia = cls(config, compute_dtype, device, load_dac)
 
         dia.model = loaded_model  # Assign the already loaded model
         dia.model.to(dia.device)
