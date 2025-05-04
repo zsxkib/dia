@@ -1,6 +1,5 @@
 import typing as tp
 
-import dac
 import torch
 
 
@@ -162,19 +161,3 @@ def revert_audio_delay(
     result_BxTxC = torch.where(t_idx_BxTxC >= T_tensor, pad_tensor, gathered_BxTxC)  # Changed np.where to torch.where
 
     return result_BxTxC
-
-
-@torch.no_grad()
-@torch.inference_mode()
-def decode(model: dac.DAC, audio_codes: torch.Tensor) -> torch.Tensor:
-    """
-    Decodes the given frames into an output audio waveform
-    """
-    try:
-        audio_values, _, _ = model.quantizer.from_codes(audio_codes)
-        audio_values = model.decode(audio_values)
-
-        return audio_values
-    except Exception as e:
-        print(f"Error in decode method: {str(e)}")
-        raise

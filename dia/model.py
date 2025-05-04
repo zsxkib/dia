@@ -1,13 +1,12 @@
 import time
 from enum import Enum
 
-import dac
 import numpy as np
 import torch
 import torchaudio
 
 # Assuming these imports are relative to the package structure
-from .audio import apply_audio_delay, build_delay_indices, build_revert_indices, decode, revert_audio_delay
+from .audio import apply_audio_delay, build_delay_indices, build_revert_indices, revert_audio_delay
 from .config import DiaConfig
 from .layers import DiaModel
 from .state import DecoderInferenceState, DecoderOutput, EncoderInferenceState
@@ -223,6 +222,8 @@ class Dia:
         Raises:
             RuntimeError: If downloading or loading the DAC model fails.
         """
+        import dac
+
         try:
             dac_model_path = dac.utils.download()
             dac_model = dac.DAC.load(dac_model_path).to(self.device)
@@ -500,13 +501,37 @@ class Dia:
 
         if self.load_dac:
             for i in range(batch_size):
-                audio = decode(self.dac_model, codebook[i, : lengths_Bx[i], :].unsqueeze(0).transpose(1, 2))
-                audio_np = audio.squeeze().cpu().numpy()
+                audio = self._decode(codebook[i, : lengths_Bx[i], :])
+                audio_np = audio.cpu().numpy()
                 audios.append(audio_np)
         else:
             for i in range(batch_size):
                 audios.append(codebook[i, : lengths_Bx[i], :].cpu().numpy())
         return audios
+
+    @torch.no_grad()
+    @torch.inference_mode()
+    def _encode(self, audio: torch.Tensor) -> torch.Tensor:
+        """
+        Encodes the given audio waveform into a tensor of DAC codebook indices
+        """
+        audio = audio.unsqueeze(0)
+        audio_data = self.dac_model.preprocess(audio, DEFAULT_SAMPLE_RATE)
+        _, encoded_frame, _, _, _ = self.dac_model.encode(audio_data)
+        encoded_frame: torch.Tensor
+        return encoded_frame.squeeze(0).transpose(0, 1)
+
+    @torch.no_grad()
+    @torch.inference_mode()
+    def _decode(self, audio_codes: torch.Tensor) -> torch.Tensor:
+        """
+        Decodes the given frames into an output audio waveform
+        """
+        audio_codes = audio_codes.unsqueeze(0).transpose(1, 2)
+        audio_values, _, _ = self.dac_model.quantizer.from_codes(audio_codes)
+        audio_values = self.dac_model.decode(audio_values)
+        audio_values: torch.Tensor
+        return audio_values.squeeze()
 
     def load_audio(self, audio_path: str) -> torch.Tensor:
         """Loads and preprocesses an audio file for use as a prompt.
@@ -532,10 +557,7 @@ class Dia:
         audio, sr = torchaudio.load(audio_path, channels_first=True)  # C, T
         if sr != DEFAULT_SAMPLE_RATE:
             audio = torchaudio.functional.resample(audio, sr, DEFAULT_SAMPLE_RATE)
-        audio = audio.to(self.device).unsqueeze(0)  # 1, C, T
-        audio_data = self.dac_model.preprocess(audio, DEFAULT_SAMPLE_RATE)
-        _, encoded_frame, _, _, _ = self.dac_model.encode(audio_data)  # 1, C, T
-        return encoded_frame.squeeze(0).transpose(0, 1)
+        return self._encode(audio.to(self.device))
 
     def save_audio(self, path: str, audio: np.ndarray):
         """Saves the generated audio waveform to a file.
