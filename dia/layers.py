@@ -129,6 +129,59 @@ class RotaryEmbedding(nn.Module):
         return torch.cat((first_part.to(self.compute_dtype), second_part.to(self.compute_dtype)), dim=-1)
 
 
+def custom_scaled_dot_product_attention(
+    query: torch.Tensor,
+    key: torch.Tensor,
+    value: torch.Tensor,
+    attn_mask: torch.Tensor | None = None,
+    scale: float = 1.0,
+    is_causal: bool = False,
+    num_gqa_groups: int = 1,
+) -> torch.Tensor:
+    """
+    Custom scaled dot-product attention with GQA support for MPS compatibility.
+
+    Args:
+        query: (B, N_q, T, H) - Query tensor, N_q = num_query_heads
+        key: (B, N_kv, S, H) - Key tensor, N_kv = num_kv_heads
+        value: (B, N_kv, S, H) - Value tensor
+        attn_mask: (B, 1, T, S) - Attention mask, optional
+        scale: Scaling factor for attention scores
+        is_causal: If True, apply causal masking
+        num_gqa_groups: Number of query groups per KV head (N_q / N_kv)
+
+    Returns:
+        output: (B, N_q, T, H) - Attention output
+    """
+    B, N_q, T, H = query.shape
+    _, N_kv, S, _ = key.shape
+
+    # For GQA, repeat key and value tensors to match query heads
+    if num_gqa_groups > 1:
+        key = key.repeat_interleave(num_gqa_groups, dim=1)  # (B, N_q, S, H)
+        value = value.repeat_interleave(num_gqa_groups, dim=1)  # (B, N_q, S, H)
+
+    # Compute attention scores: (B, N_q, T, H) @ (B, N_q, H, S) -> (B, N_q, T, S)
+    scores = torch.matmul(query, key.transpose(-1, -2)) * scale
+
+    # Apply causal mask if needed
+    if is_causal:
+        causal_mask = torch.tril(torch.ones(T, S, dtype=torch.bool, device=query.device))
+        scores = scores.masked_fill(~causal_mask, float("-inf"))
+
+    # Apply attention mask if provided
+    if attn_mask is not None:
+        scores = scores.masked_fill(~attn_mask, float("-inf"))
+
+    # Softmax over the last dimension (S)
+    attn_weights = F.softmax(scores, dim=-1)
+
+    # Compute output: (B, N_q, T, S) @ (B, N_q, S, H) -> (B, N_q, T, H)
+    output = torch.matmul(attn_weights, value)
+
+    return output
+
+
 class Attention(nn.Module):
     """Attention using DenseGeneral."""
 
@@ -248,15 +301,28 @@ class Attention(nn.Module):
             else:
                 attn_k, attn_v = cache.update(Xk_BxKxSxH, Xv_BxKxSxH, current_idx)
 
-        attn_output = F.scaled_dot_product_attention(
-            Xq_BxNxTxH,
-            attn_k,
-            attn_v,
-            attn_mask=attn_mask if not is_causal else None,
-            scale=1.0,
-            enable_gqa=self.num_gqa_groups > 1,
-            is_causal=is_causal,
-        )
+        # Use custom attention for MPS backend, otherwise use optimized PyTorch function
+        is_mps = Xq.device.type == "mps" and torch.backends.mps.is_available()
+        if is_mps:
+            attn_output = custom_scaled_dot_product_attention(
+                query=Xq_BxNxTxH,
+                key=attn_k,
+                value=attn_v,
+                attn_mask=attn_mask if not is_causal else None,
+                scale=1.0,
+                is_causal=is_causal,
+                num_gqa_groups=self.num_gqa_groups,
+            )
+        else:
+            attn_output = F.scaled_dot_product_attention(
+                Xq_BxNxTxH,
+                attn_k,
+                attn_v,
+                attn_mask=attn_mask if not is_causal else None,
+                scale=1.0,
+                enable_gqa=self.num_gqa_groups > 1,
+                is_causal=is_causal,
+            )
 
         attn_output = attn_output.transpose(1, 2).contiguous()  # (B, T, N, H)
         output = self.o_proj(attn_output)

@@ -95,20 +95,20 @@ output = model.generate(text, use_torch_compile=True, verbose=True)
 model.save_audio("simple.mp3", output)
 ```
 
-If you're on Mac with Apple silicon, you can use the following code to make it work. It'll only run on CPU though.
+If you're on Mac with Apple Silicon, you can use the following code to make it work. For MPS to work `use_torch_compile` must be set to `False`. As that feature isn't supported yet.
 
 ```python
-from dia.model import Dia
 import torch
 
-device = torch.device("cpu")
+from dia.model import Dia
 
-# Pass the device parameter directly when loading
-model = Dia.from_pretrained(
-    "nari-labs/Dia-1.6B",
-    compute_dtype="float32",
-    device=device
-)
+
+# Select device: MPS if available, else CPU
+device = torch.device("mps") if torch.backends.mps.is_available() else torch.device("cpu")
+print(f"Using device: {device}")
+
+# Load model
+model = Dia.from_pretrained("nari-labs/Dia-1.6B", compute_dtype="float32", device=device)
 
 text = "[S1] Dia is an open weights text to dialogue model. [S2] You get full control over scripts and voices. [S1] Wow. Amazing. (laughs) [S2] Try it now on Git hub or Hugging Face."
 
