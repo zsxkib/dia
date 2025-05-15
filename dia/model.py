@@ -557,6 +557,9 @@ class Dia:
         audio, sr = torchaudio.load(audio_path, channels_first=True)  # C, T
         if sr != DEFAULT_SAMPLE_RATE:
             audio = torchaudio.functional.resample(audio, sr, DEFAULT_SAMPLE_RATE)
+        # Convert to mono if stereo
+        if audio.shape[0] > 1:
+            audio = torch.mean(audio, dim=0, keepdim=True)  # Average channels to get mono
         return self._encode(audio.to(self.device))
 
     def save_audio(self, path: str, audio: np.ndarray):
