@@ -14,11 +14,12 @@ dependencies = [
     "huggingface-hub>=0.30.2",
     "numpy>=2.2.4",
     "pydantic>=2.11.3",
+    "safetensors>=0.5.3",
     "soundfile>=0.13.1",
-    "torch>=2.6.0",
-    "torchaudio>=2.6.0",
-    "triton>=3.2.0 ; sys_platform == 'linux'",
-    "triton-windows>=3.2.0.post18 ; sys_platform == 'win32'",
+    "torch==2.6.0",
+    "torchaudio==2.6.0",
+    "triton==3.2.0 ; sys_platform == 'linux'",
+    "triton-windows==3.2.0.post18 ; sys_platform == 'win32'",
 ]
 
 [build-system]
@@ -57,3 +58,9 @@ torchaudio = [
 name = "pytorch-cu126"
 url = "https://download.pytorch.org/whl/cu126"
 explicit = true
+
+[dependency-groups]
+dev = [
+    "ninja>=1.11.1.4",
+    "packaging>=25.0",
+]

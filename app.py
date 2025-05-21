@@ -38,7 +38,7 @@ print(f"Using device: {device}")
 print("Loading Nari model...")
 try:
     # Use the function from inference.py
-    model = Dia.from_pretrained("nari-labs/Dia-1.6B", device=device)
+    model = Dia.from_pretrained("nari-labs/Dia-1.6B", compute_dtype="float16", device=device)
 except Exception as e:
     print(f"Error loading Nari model: {e}")
     raise
@@ -130,10 +130,9 @@ def run_inference(
                 cfg_scale=cfg_scale,
                 temperature=temperature,
                 top_p=top_p,
-                use_cfg_filter=True,
                 cfg_filter_top_k=cfg_filter_top_k,  # Pass the value here
                 use_torch_compile=False,  # Keep False for Gradio stability
-                audio_prompt_path=prompt_path_for_generate,
+                audio_prompt=prompt_path_for_generate,
             )
 
         end_time = time.time()
@@ -167,6 +166,13 @@ def run_inference(
             # --- End slowdown ---
 
             print(f"Audio conversion successful. Final shape: {output_audio[1].shape}, Sample Rate: {output_sr}")
+
+            # Explicitly convert to int16 to prevent Gradio warning
+            if output_audio[1].dtype == np.float32 or output_audio[1].dtype == np.float64:
+                audio_for_gradio = np.clip(output_audio[1], -1.0, 1.0)
+                audio_for_gradio = (audio_for_gradio * 32767).astype(np.int16)
+                output_audio = (output_sr, audio_for_gradio)
+                print("Converted audio to int16 for Gradio output.")
 
         else:
             print("\nGeneration finished, but no valid tokens were produced.")
@@ -354,7 +360,6 @@ with gr.Blocks(css=css) as demo:
         )
     else:
         gr.Markdown("_(No examples configured or example prompt file missing)_")
-
 
 # --- Launch the App ---
 if __name__ == "__main__":

@@ -121,7 +121,7 @@ def main():
 
         output_audio = model.generate(
             text=args.text,
-            audio_prompt_path=args.audio_prompt,
+            audio_prompt=args.audio_prompt,
             max_tokens=args.max_tokens,
             cfg_scale=args.cfg_scale,
             temperature=args.temperature,
