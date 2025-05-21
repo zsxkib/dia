@@ -9,8 +9,8 @@ print(f"Using device: {device}")
 
 # Load model
 model = Dia.from_pretrained(
-    "nari-labs/Dia-1.6B", compute_dtype="float16", device=device
-)  # If you're on a Mac with M1/M2, use "float32" in compute_dtype
+    "nari-labs/Dia-1.6B", compute_dtype="float32", device=device
+)  # Float32 works better than float16 on CPU - you can also test with float16
 
 text = "[S1] Dia is an open weights text to dialogue model. [S2] You get full control over scripts and voices. [S1] Wow. Amazing. (laughs) [S2] Try it now on Git hub or Hugging Face."
 

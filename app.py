@@ -37,8 +37,15 @@ print(f"Using device: {device}")
 # Load Nari model and config
 print("Loading Nari model...")
 try:
-    # Use the function from inference.py
-    model = Dia.from_pretrained("nari-labs/Dia-1.6B", compute_dtype="float16", device=device)
+    dtype_map = {
+        "cpu": "float32",
+        "mps": "float32",  # Apple M series – better with float32
+        "cuda": "float16",  # NVIDIA – better with float16
+    }
+
+    dtype = dtype_map.get(device.type, "float16")
+    print(f"Using device: {device}, attempting to load model with {dtype}")
+    model = Dia.from_pretrained("nari-labs/Dia-1.6B", compute_dtype=dtype, device=device)
 except Exception as e:
     print(f"Error loading Nari model: {e}")
     raise
