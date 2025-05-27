@@ -429,12 +429,12 @@ class Dia:
         cond_logits_BxCxV = logits_last_Bx2xCxV[:, 1, :, :]  # Shape [B, C, V]
         logits_BxCxV = cond_logits_BxCxV + cfg_scale * (cond_logits_BxCxV - uncond_logits_BxCxV)
 
-        logits_BxCxV[:, audio_eos_value + 1 :] = torch.full_like(
-            logits_BxCxV[:, audio_eos_value + 1 :],
+        logits_BxCxV[:, :, audio_eos_value + 1 :] = torch.full_like(
+            logits_BxCxV[:, :, audio_eos_value + 1 :],
             fill_value=-torch.inf,
         )
-        logits_BxCxV[1:, audio_eos_value:] = torch.full_like(
-            logits_BxCxV[1:, audio_eos_value:],
+        logits_BxCxV[:, 1:, audio_eos_value:] = torch.full_like(
+            logits_BxCxV[:, 1:, audio_eos_value:],
             fill_value=-torch.inf,
         )
         logits_BxCxV[:, 0, audio_eos_value] *= torch.tensor(0.8, device=self.device)
