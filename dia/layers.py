@@ -333,7 +333,7 @@ class FusedQKV(nn.Module):
         self.kv_output_dim = num_kv_heads * kv_head_dim
         self.linear = nn.Linear(in_features, out_features, bias=bias)
 
-    def forward(self, inputs: torch.Tensor) -> torch.Tensor:
+    def forward(self, inputs: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
         x = self.linear(inputs)
 
         q, k, v = x.split([self.q_output_dim, self.kv_output_dim, self.kv_output_dim], dim=-1)
@@ -723,6 +723,7 @@ class DecoderLayer(nn.Module):
             Xq=x_norm,
             q_positions=state.dec_positions,
             kv_positions=state.enc_positions,
+            attn_mask=state.cross_attn_mask,
             cache=cross_attn_cache,
         )
         x = residual + ca_out
