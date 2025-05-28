@@ -339,6 +339,7 @@ class Dia:
         self,
         text: torch.Tensor,
         audio_prompts: list[torch.Tensor | None],
+        max_tokens: int | None = None,
     ):
         """Initializes the model state for generation.
 
@@ -371,7 +372,12 @@ class Dia:
             encoder_out, enc_state.positions, enc_state.padding_mask
         )
         dec_state = DecoderInferenceState.new(
-            self.config, enc_state, encoder_out, dec_cross_attn_cache, self.compute_dtype
+            self.config,
+            enc_state,
+            encoder_out,
+            dec_cross_attn_cache,
+            self.compute_dtype,
+            max_generation_length=max_tokens,
         )
         prefill, prefill_steps = self._prepare_audio_prompt(audio_prompts)
 
@@ -663,7 +669,7 @@ class Dia:
             text = [self._encode_text(text)]
         text = self._pad_text_input(text)
 
-        dec_state, dec_output = self._prepare_generation(text, audio_prompt)
+        dec_state, dec_output = self._prepare_generation(text, audio_prompt, max_tokens=max_tokens)
         dec_step = min(dec_output.prefill_steps) - 1
         current_idx = torch.tensor([dec_step], device=self.device)
 

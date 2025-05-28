@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+from typing import Optional
 
 import torch
 
@@ -135,10 +136,11 @@ class DecoderInferenceState:
         enc_out: torch.Tensor,
         dec_cross_attn_cache: list[KVCache],
         compute_dtype: torch.dtype,
+        max_generation_length: Optional[int] = None,
     ) -> "DecoderInferenceState":
         """Creates DecoderInferenceParams from DiaConfig and a device."""
         device = enc_out.device
-        max_audio_len = config.data.audio_length
+        max_audio_len = max_generation_length or config.data.audio_length
         batch_size = enc_out.shape[0] // 2
 
         dec_positions = torch.full((2 * batch_size, 1), fill_value=0, dtype=torch.int32, device=device)
