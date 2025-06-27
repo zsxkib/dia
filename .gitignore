@@ -12,6 +12,7 @@ wheels/
 .gradio
 
 **/*.pth
+**/*.safetensors
 **/*.mp3
 !example_prompt.mp3
 **/*.txt

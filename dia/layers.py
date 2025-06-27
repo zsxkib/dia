@@ -5,7 +5,7 @@ from huggingface_hub import PyTorchModelHubMixin
 from torch import Tensor
 from torch.nn import RMSNorm
 
-from .config import DiaConfig
+from .config import DecoderConfig, DiaConfig, EncoderConfig
 from .state import DecoderInferenceState, EncoderInferenceState, KVCache
 
 
@@ -16,12 +16,10 @@ def _normalize_axes(axes: tuple[int, ...], ndim: int) -> tuple[int, ...]:
 class DenseGeneral(nn.Module):
     """
     PyTorch equivalent of flax.linen.DenseGeneral with shapes defined at init.
-
     Stores weights (`kernel`) in the same layout as Jax and uses torch.tensordot
     for the generalized matrix multiplication. Weight/bias shapes are calculated
     and parameters created during initialization based on config.
     `load_weights` validates shapes and copies data.
-
     Attributes:
         axis (Tuple[int, ...]): Input axis or axes to contract.
         in_shapes (Tuple[int, ...]): Sizes of the input dimensions specified by `axis`.
@@ -126,7 +124,10 @@ class RotaryEmbedding(nn.Module):
         first_half, second_half = torch.chunk(inputs.to(torch.float32), 2, dim=-1)
         first_part = first_half * cos - second_half * sin
         second_part = second_half * cos + first_half * sin
-        return torch.cat((first_part.to(self.compute_dtype), second_part.to(self.compute_dtype)), dim=-1)
+        return torch.cat(
+            (first_part.to(self.compute_dtype), second_part.to(self.compute_dtype)),
+            dim=-1,
+        )
 
     def apply_rope(self, inputs: torch.Tensor, sin: torch.Tensor, cos: torch.Tensor):
         first_half, second_half = torch.chunk(inputs.to(torch.float32), 2, dim=-1)
@@ -193,7 +194,7 @@ class CrossAttention(nn.Module):
 
     def __init__(
         self,
-        config: DiaConfig,
+        config: EncoderConfig | DecoderConfig,
         q_embed_dim: int,
         kv_embed_dim: int,
         num_query_heads: int,
@@ -241,8 +242,7 @@ class CrossAttention(nn.Module):
         # --- Rotary Embedding ---
         self.rotary_emb = RotaryEmbedding(
             embedding_dims=self.head_dim,
-            min_timescale=config.model.rope_min_timescale,
-            max_timescale=config.model.rope_max_timescale,
+            max_timescale=config.rope_theta,
             dtype=compute_dtype,
         )
 
@@ -276,7 +276,6 @@ class CrossAttention(nn.Module):
         original_dtype = Xq.dtype
 
         Xq_BxTxNxH = self.q_proj(Xq)
-        Xq_BxTxNxH = self.rotary_emb(Xq_BxTxNxH, position=q_positions)
         Xq_BxNxTxH = Xq_BxTxNxH.transpose(1, 2)
 
         attn_k: torch.Tensor | None = None
@@ -357,14 +356,12 @@ class SelfAttention(nn.Module):
         num_kv_heads: int,
         head_dim: int,
         compute_dtype: torch.dtype,
-        is_cross_attn: bool = False,
         out_embed_dim: int | None = None,
     ):
         super().__init__()
         self.num_query_heads = num_query_heads
         self.num_kv_heads = num_kv_heads
         self.head_dim = head_dim
-        self.is_cross_attn = is_cross_attn
         self.output_dim = out_embed_dim if out_embed_dim is not None else q_embed_dim
         self.projected_query_dim = num_query_heads * head_dim
         if num_query_heads % num_kv_heads != 0:
@@ -402,8 +399,7 @@ class SelfAttention(nn.Module):
         # --- Rotary Embedding ---
         self.rotary_emb = RotaryEmbedding(
             embedding_dims=self.head_dim,
-            min_timescale=config.model.rope_min_timescale,
-            max_timescale=config.model.rope_max_timescale,
+            max_timescale=config.rope_theta,
             dtype=compute_dtype,
         )
 
@@ -455,7 +451,6 @@ class SelfAttention(nn.Module):
     ) -> tuple[torch.Tensor, tuple[torch.Tensor, torch.Tensor] | None]:
         """
         Performs attention calculation with optional KV caching.
-
         Args:
             Xq: Query tensor (B, T, D). T=1 during single-step decoding.
             Xkv: Key/Value source tensor (B, S, E). S=1 during single-step decoding for self-attn.
@@ -464,7 +459,6 @@ class SelfAttention(nn.Module):
             attn_mask: Attention mask.
             cache: KVCache.
             prefill: If True, use prefill mode.
-
         Returns:
             A tuple containing:
             - output: The attention output tensor (B, T, output_dim).
@@ -542,33 +536,35 @@ class EncoderLayer(nn.Module):
     def __init__(self, config: DiaConfig, compute_dtype: torch.dtype):
         super().__init__()
         self.config = config
-        model_config = config.model
-        enc_config = config.model.encoder
-        embed_dim = enc_config.n_embd
+        enc_config = config.encoder_config
+        embed_dim = enc_config.hidden_size
         self.compute_dtype = compute_dtype
 
         self.pre_sa_norm = RMSNorm(
             embed_dim,
-            eps=model_config.normalization_layer_epsilon,
+            eps=enc_config.norm_eps,
             dtype=torch.float32,
         )
         self.self_attention = SelfAttention(
-            config,
+            enc_config,
             q_embed_dim=embed_dim,
             kv_embed_dim=embed_dim,
-            num_query_heads=enc_config.n_head,
-            num_kv_heads=enc_config.n_head,
+            num_query_heads=enc_config.num_attention_heads,
+            num_kv_heads=enc_config.num_key_value_heads,
             head_dim=enc_config.head_dim,
             compute_dtype=compute_dtype,
-            is_cross_attn=False,
             out_embed_dim=embed_dim,
         )
         self.post_sa_norm = RMSNorm(
             embed_dim,
-            eps=model_config.normalization_layer_epsilon,
+            eps=enc_config.norm_eps,
             dtype=torch.float32,
         )
-        self.mlp = MlpBlock(embed_dim=embed_dim, intermediate_dim=enc_config.n_hidden, compute_dtype=compute_dtype)
+        self.mlp = MlpBlock(
+            embed_dim=embed_dim,
+            intermediate_dim=enc_config.intermediate_size,
+            compute_dtype=compute_dtype,
+        )
 
     def forward(
         self,
@@ -600,19 +596,18 @@ class Encoder(nn.Module):
     def __init__(self, config: DiaConfig, compute_dtype: torch.dtype):
         super().__init__()
         self.config = config
-        model_config = config.model
-        enc_config = config.model.encoder
+        enc_config = config.encoder_config
         self.compute_dtype = compute_dtype
 
         self.embedding = nn.Embedding(
-            model_config.src_vocab_size,
-            enc_config.n_embd,
+            enc_config.vocab_size,
+            enc_config.hidden_size,
             dtype=compute_dtype,
         )
-        self.layers = nn.ModuleList([EncoderLayer(config, compute_dtype) for _ in range(enc_config.n_layer)])
+        self.layers = nn.ModuleList([EncoderLayer(config, compute_dtype) for _ in range(enc_config.num_hidden_layers)])
         self.norm = RMSNorm(
-            enc_config.n_embd,
-            eps=model_config.normalization_layer_epsilon,
+            enc_config.hidden_size,
+            eps=enc_config.norm_eps,
             dtype=torch.float32,
         )
 
@@ -636,49 +631,47 @@ class DecoderLayer(nn.Module):
     def __init__(self, config: DiaConfig, compute_dtype: torch.dtype):
         super().__init__()
         self.config = config
-        model_config = config.model
-        dec_config = config.model.decoder
-        enc_config = config.model.encoder
-        dec_embed_dim = dec_config.n_embd
-        enc_embed_dim = enc_config.n_embd
+        dec_config = config.decoder_config
+        enc_config = config.encoder_config
+        dec_embed_dim = dec_config.hidden_size
+        enc_embed_dim = enc_config.hidden_size
         self.compute_dtype = compute_dtype
 
         # Norms
         self.pre_sa_norm = RMSNorm(
             dec_embed_dim,
-            eps=model_config.normalization_layer_epsilon,
+            eps=dec_config.norm_eps,
             dtype=torch.float32,
         )
         self.pre_ca_norm = RMSNorm(
             dec_embed_dim,
-            eps=model_config.normalization_layer_epsilon,
+            eps=dec_config.norm_eps,
             dtype=torch.float32,
         )
         self.pre_mlp_norm = RMSNorm(
             dec_embed_dim,
-            eps=model_config.normalization_layer_epsilon,
+            eps=dec_config.norm_eps,
             dtype=torch.float32,
         )
 
         # Self-Attention (GQA) with Causal Masking
         self.self_attention = SelfAttention(
-            config,
+            dec_config,
             q_embed_dim=dec_embed_dim,
             kv_embed_dim=dec_embed_dim,
-            num_query_heads=dec_config.gqa_query_heads,
-            num_kv_heads=dec_config.kv_heads,
-            head_dim=dec_config.gqa_head_dim,
+            num_query_heads=dec_config.num_attention_heads,
+            num_kv_heads=dec_config.num_key_value_heads,
+            head_dim=dec_config.head_dim,
             compute_dtype=compute_dtype,
-            is_cross_attn=False,
             out_embed_dim=dec_embed_dim,
         )
         # Cross-Attention (MHA)
         self.cross_attention = CrossAttention(
-            config=config,
+            dec_config,
             q_embed_dim=dec_embed_dim,
             kv_embed_dim=enc_embed_dim,  # Note kv_embed_dim
-            num_query_heads=dec_config.cross_query_heads,
-            num_kv_heads=dec_config.cross_query_heads,
+            num_query_heads=dec_config.cross_num_attention_heads,
+            num_kv_heads=dec_config.cross_num_key_value_heads,
             head_dim=dec_config.cross_head_dim,
             compute_dtype=compute_dtype,
             out_embed_dim=dec_embed_dim,
@@ -686,7 +679,7 @@ class DecoderLayer(nn.Module):
         # MLP
         self.mlp = MlpBlock(
             embed_dim=dec_embed_dim,
-            intermediate_dim=dec_config.n_hidden,
+            intermediate_dim=dec_config.intermediate_size,
             compute_dtype=compute_dtype,
         )
 
@@ -742,15 +735,13 @@ class Decoder(nn.Module):
     def __init__(self, config: DiaConfig, compute_dtype: torch.dtype):
         super().__init__()
         self.config = config
-        model_config = config.model
-        dec_config = config.model.decoder
-        data_config = config.data
-        self.num_channels = data_config.channels
-        self.num_layers = dec_config.n_layer
+        dec_config = config.decoder_config
+        self.num_channels = dec_config.num_channels
+        self.num_layers = dec_config.num_hidden_layers
 
         self.embeddings = nn.ModuleList(
             [
-                nn.Embedding(model_config.tgt_vocab_size, dec_config.n_embd, dtype=compute_dtype)
+                nn.Embedding(dec_config.vocab_size, dec_config.hidden_size, dtype=compute_dtype)
                 for _ in range(self.num_channels)
             ]
         )
@@ -759,14 +750,14 @@ class Decoder(nn.Module):
         )
 
         self.norm = RMSNorm(
-            dec_config.n_embd,
-            eps=model_config.normalization_layer_epsilon,
+            dec_config.hidden_size,
+            eps=dec_config.norm_eps,
             dtype=torch.float32,
         )
 
         self.logits_dense = DenseGeneral(
-            in_shapes=(dec_config.n_embd,),
-            out_features=(self.num_channels, model_config.tgt_vocab_size),
+            in_shapes=(dec_config.hidden_size,),
+            out_features=(self.num_channels, dec_config.vocab_size),
             axis=(-1,),
             weight_dtype=compute_dtype,
         )
@@ -774,8 +765,6 @@ class Decoder(nn.Module):
     def precompute_cross_attn_cache(
         self,
         enc_out: torch.Tensor,  # (B, S, E)
-        enc_positions: torch.Tensor,  # (B, S)
-        k_padding_mask: torch.Tensor | None = None,
     ) -> list[KVCache]:
         """
         Computes the Key and Value tensors for cross-attention for each layer from the encoder output.
@@ -787,11 +776,8 @@ class Decoder(nn.Module):
             k_proj = cross_attn_module.k_proj(enc_out)
             v_proj = cross_attn_module.v_proj(enc_out)
 
-            k_proj = cross_attn_module.rotary_emb(k_proj, position=enc_positions)
             k = k_proj.transpose(1, 2)
             v = v_proj.transpose(1, 2)
-            if k_padding_mask is not None:
-                k = k.masked_fill(~k_padding_mask.unsqueeze(1).unsqueeze(3), 0.0)
 
             per_layer_kv_cache.append(KVCache.from_kv(k, v))
 
@@ -805,7 +791,6 @@ class Decoder(nn.Module):
     ) -> torch.Tensor:
         """
         Performs a single decoding step, managing KV caches layer by layer.
-
         Returns:
             A tuple containing:
             - logits_Bx1xCV: The final output logits for the current step (B, 1, C*V), cast to float32.
@@ -836,7 +821,6 @@ class Decoder(nn.Module):
     def forward(self, tgt_ids_BxTxC: torch.Tensor, state: DecoderInferenceState) -> torch.Tensor:
         """
         Forward pass for the Decoder stack, managing KV caches.
-
         Args:
             tgt_ids_BxTxC: Target token IDs (B, T, C).
             encoder_out: Output from the encoder (B, S, E).
@@ -850,7 +834,6 @@ class Decoder(nn.Module):
             precomputed_cross_attn_kv: A single tuple containing the pre-computed K/V cache
                                       derived from `encoder_out`. This is passed identically
                                       to all layers.
-
         Returns:
             A tuple containing:
             - logits: The final output logits (B, T, C * V), cast to float32.
@@ -870,7 +853,13 @@ class Decoder(nn.Module):
         for i, layer in enumerate(self.layers):
             self_cache = state.self_attn_cache[i]
             cross_cache = state.cross_attn_cache[i]
-            x = layer(x, state, self_attn_cache=self_cache, cross_attn_cache=cross_cache, prefill=True)
+            x = layer(
+                x,
+                state,
+                self_attn_cache=self_cache,
+                cross_attn_cache=cross_cache,
+                prefill=True,
+            )
 
         # Final Norm
         x = self.norm(x)

@@ -12,7 +12,7 @@ torch._inductor.config.fx_graph_cache = True
 # debugging
 torch._logging.set_logs(graph_breaks=True, recompiles=True)
 
-model_name = "nari-labs/Dia-1.6B"
+model_name = "nari-labs/Dia-1.6B-0626"
 compute_dtype = "float16"
 
 model = Dia.from_pretrained(model_name, compute_dtype=compute_dtype)

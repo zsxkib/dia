@@ -1,7 +1,7 @@
 from dia.model import Dia
 
 
-model = Dia.from_pretrained("nari-labs/Dia-1.6B", compute_dtype="float16")
+model = Dia.from_pretrained("nari-labs/Dia-1.6B-0626", compute_dtype="float16")
 
 # You should put the transcript of the voice you want to clone
 # We will use the audio created by running simple.py as an example.

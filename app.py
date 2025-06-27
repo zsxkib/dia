@@ -45,7 +45,7 @@ try:
 
     dtype = dtype_map.get(device.type, "float16")
     print(f"Using device: {device}, attempting to load model with {dtype}")
-    model = Dia.from_pretrained("nari-labs/Dia-1.6B", compute_dtype=dtype, device=device)
+    model = Dia.from_pretrained("nari-labs/Dia-1.6B-0626", compute_dtype=dtype, device=device)
 except Exception as e:
     print(f"Error loading Nari model: {e}")
     raise

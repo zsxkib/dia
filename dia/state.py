@@ -21,15 +21,7 @@ def create_attn_mask(
     p_mask_q = q_padding_mask_1d.unsqueeze(2)  # Shape [B, Tq, 1]
     p_mask_k = k_padding_mask_1d.unsqueeze(1)  # Shape [B, 1, Tk]
 
-    # Condition A: Non-padding query attends to non-padding key
-    non_pad_attends_non_pad = p_mask_q & p_mask_k  # Shape [B, Tq, Tk]
-
-    # Condition B: Padding query attends to padding key
-    pad_attends_pad = (~p_mask_q) & (~p_mask_k)  # Shape [B, Tq, Tk]
-
-    # Combine: True if padding status is compatible (both non-pad OR both pad)
-    mask = non_pad_attends_non_pad | pad_attends_pad  # Shape [B, Tq, Tk]
-
+    mask = p_mask_q & p_mask_k
     if is_causal:
         # assert Tq == Tk, "Causal mask requires query and key sequence lengths to be equal"
         causal_mask_2d = torch.tril(torch.ones_like(mask[0], dtype=torch.bool, device=device))  # Shape [B, Tq, Tk]
@@ -54,12 +46,14 @@ class EncoderInferenceState:
         """Creates EtorchrInferenceParams from DiaConfig and a device."""
         device = cond_src.device
 
-        positions = torch.arange(config.data.text_length, dtype=torch.float32, device=device).unsqueeze(0)
-        padding_mask = (cond_src.squeeze(1) != config.data.text_pad_value).to(device).repeat_interleave(2, dim=0)
+        positions = torch.arange(
+            config.encoder_config.max_position_embeddings, dtype=torch.float32, device=device
+        ).unsqueeze(0)
+        padding_mask = (cond_src.squeeze(1) != 0).to(device).repeat_interleave(2, dim=0)
         attn_mask = create_attn_mask(padding_mask, padding_mask, device, is_causal=False)
 
         return cls(
-            max_seq_len=config.data.text_length,
+            max_seq_len=config.encoder_config.max_position_embeddings,
             device=device,
             positions=positions,
             padding_mask=padding_mask,
@@ -140,7 +134,7 @@ class DecoderInferenceState:
     ) -> "DecoderInferenceState":
         """Creates DecoderInferenceParams from DiaConfig and a device."""
         device = enc_out.device
-        max_audio_len = max_generation_length or config.data.audio_length
+        max_audio_len = max_generation_length or config.decoder_config.max_position_embeddings
         batch_size = enc_out.shape[0] // 2
 
         dec_positions = torch.full((2 * batch_size, 1), fill_value=0, dtype=torch.int32, device=device)
@@ -151,13 +145,13 @@ class DecoderInferenceState:
         self_attn_cache = [
             KVCache(
                 batch_size,
-                config.model.decoder.kv_heads,
+                config.decoder_config.num_key_value_heads,
                 max_audio_len,
-                config.model.decoder.gqa_head_dim,
+                config.decoder_config.head_dim,
                 compute_dtype,
                 device,
             )
-            for _ in range(config.model.decoder.n_layer)
+            for _ in range(config.decoder_config.num_hidden_layers)
         ]
 
         return cls(
@@ -185,10 +179,10 @@ class DecoderOutput:
 
     @classmethod
     def new(cls, batch_size: int, config: DiaConfig, device: torch.device) -> "DecoderOutput":
-        max_audio_len = config.data.audio_length
+        max_audio_len = config.decoder_config.max_position_embeddings
         return cls(
             generated_tokens=torch.full(
-                (batch_size, max_audio_len, config.data.channels),
+                (batch_size, max_audio_len, config.decoder_config.num_channels),
                 fill_value=-1,
                 dtype=torch.int,
                 device=device,
