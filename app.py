@@ -251,7 +251,7 @@ with gr.Blocks(css=css) as demo:
                     label="Max New Tokens (Audio Length)",
                     minimum=860,
                     maximum=3072,
-                    value=model.config.data.audio_length,  # Use config default if available, else fallback
+                    value=model.config.decoder_config.max_position_embeddings,  # Use config default if available, else fallback
                     step=50,
                     info="Controls the maximum length of the generated audio (more tokens = longer audio).",
                 )
