@@ -162,7 +162,7 @@ uv run cli.py --help
 > You can keep speaker consistency by either adding an audio prompt, or fixing the seed.
 
 > [!IMPORTANT]
-> If you are using 5000 series GPU, you should use torch 2.8 nightly. Look at the issue #26 for more details.
+> If you are using 5000 series GPU, you should use torch 2.8 nightly. Look at the issue [#26](https://github.com/nari-labs/dia/issues/26) for more details.
 
 ## Features
 
