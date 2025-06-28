@@ -54,6 +54,7 @@ except Exception as e:
 def run_inference(
     text_input: str,
     audio_prompt_input: Optional[Tuple[int, np.ndarray]],
+    transcription_input: Optional[str],
     max_new_tokens: int,
     cfg_scale: float,
     temperature: float,
@@ -78,6 +79,10 @@ def run_inference(
         prompt_path_for_generate = None
         if audio_prompt_input is not None:
             sr, audio_data = audio_prompt_input
+            # Enforce maximum duration of 10 seconds for the audio prompt
+            duration_sec = len(audio_data) / float(sr) if sr else 0
+            if duration_sec > 10.0:
+                raise gr.Error("Audio prompt must be 10 seconds or shorter.")
             # Check if audio_data is valid
             if audio_data is None or audio_data.size == 0 or audio_data.max() == 0:  # Check for silence/empty
                 gr.Warning("Audio prompt seems empty or silent, ignoring prompt.")
@@ -131,8 +136,15 @@ def run_inference(
 
         # Use torch.inference_mode() context manager for the generation call
         with torch.inference_mode():
+            # Concatenate transcription (if provided) to the main text
+            combined_text = (
+                text_input.strip() + "\n" + transcription_input.strip()
+                if transcription_input and not transcription_input.isspace()
+                else text_input
+            )
+
             output_audio_np = model.generate(
-                text_input,
+                combined_text,
                 max_tokens=max_new_tokens,
                 cfg_scale=cfg_scale,
                 temperature=temperature,
@@ -140,6 +152,7 @@ def run_inference(
                 cfg_filter_top_k=cfg_filter_top_k,  # Pass the value here
                 use_torch_compile=False,  # Keep False for Gradio stability
                 audio_prompt=prompt_path_for_generate,
+                verbose=True,
             )
 
         end_time = time.time()
@@ -241,10 +254,15 @@ with gr.Blocks(css=css) as demo:
                 lines=5,  # Increased lines
             )
             audio_prompt_input = gr.Audio(
-                label="Audio Prompt (Optional)",
+                label="Audio Prompt (≤ 10 s, Optional)",
                 show_label=True,
                 sources=["upload", "microphone"],
                 type="numpy",
+            )
+            transcription_input = gr.Textbox(
+                label="Audio Prompt Transcription (Optional)",
+                placeholder="Enter transcription of your audio prompt here...",
+                lines=3,
             )
             with gr.Accordion("Generation Parameters", open=False):
                 max_new_tokens = gr.Slider(
@@ -266,14 +284,14 @@ with gr.Blocks(css=css) as demo:
                 temperature = gr.Slider(
                     label="Temperature (Randomness)",
                     minimum=1.0,
-                    maximum=1.5,
-                    value=1.3,  # Default from inference.py
+                    maximum=2.5,
+                    value=1.8,  # Default from inference.py
                     step=0.05,
                     info="Lower values make the output more deterministic, higher values increase randomness.",
                 )
                 top_p = gr.Slider(
                     label="Top P (Nucleus Sampling)",
-                    minimum=0.80,
+                    minimum=0.70,
                     maximum=1.0,
                     value=0.95,  # Default from inference.py
                     step=0.01,
@@ -282,8 +300,8 @@ with gr.Blocks(css=css) as demo:
                 cfg_filter_top_k = gr.Slider(
                     label="CFG Filter Top K",
                     minimum=15,
-                    maximum=50,
-                    value=30,
+                    maximum=100,
+                    value=45,
                     step=1,
                     info="Top k filter for CFG guidance.",
                 )
@@ -291,7 +309,7 @@ with gr.Blocks(css=css) as demo:
                     label="Speed Factor",
                     minimum=0.8,
                     maximum=1.0,
-                    value=0.94,
+                    value=1.0,
                     step=0.02,
                     info="Adjusts the speed of the generated audio (1.0 = original speed).",
                 )
@@ -311,6 +329,7 @@ with gr.Blocks(css=css) as demo:
         inputs=[
             text_input,
             audio_prompt_input,
+            transcription_input,
             max_new_tokens,
             cfg_scale,
             temperature,
@@ -330,29 +349,38 @@ with gr.Blocks(css=css) as demo:
             None,
             3072,
             3.0,
-            1.3,
+            1.8,
             0.95,
-            35,
-            0.94,
+            45,
+            1.0,
         ],
         [
             "[S1] Open weights text to dialogue model. \n[S2] You get full control over scripts and voices. \n[S1] I'm biased, but I think we clearly won. \n[S2] Hard to disagree. (laughs) \n[S1] Thanks for listening to this demo. \n[S2] Try it now on Git hub and Hugging Face. \n[S1] If you liked our model, please give us a star and share to your friends. \n[S2] This was Nari Labs.",
             example_prompt_path if Path(example_prompt_path).exists() else None,
             3072,
             3.0,
-            1.3,
+            1.8,
             0.95,
-            35,
-            0.94,
+            45,
+            1.0,
         ],
     ]
 
     if examples_list:
         gr.Examples(
-            examples=examples_list,
+            examples=[
+                [
+                    ex[0],  # text
+                    ex[1],  # audio prompt path
+                    "",  # transcription placeholder
+                    *ex[2:],
+                ]
+                for ex in examples_list
+            ],
             inputs=[
                 text_input,
                 audio_prompt_input,
+                transcription_input,
                 max_new_tokens,
                 cfg_scale,
                 temperature,
