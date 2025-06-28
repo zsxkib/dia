@@ -21,7 +21,15 @@ def create_attn_mask(
     p_mask_q = q_padding_mask_1d.unsqueeze(2)  # Shape [B, Tq, 1]
     p_mask_k = k_padding_mask_1d.unsqueeze(1)  # Shape [B, 1, Tk]
 
-    mask = p_mask_q & p_mask_k
+    # Condition A: Non-padding query attends to non-padding key
+    non_pad_attends_non_pad = p_mask_q & p_mask_k  # Shape [B, Tq, Tk]
+
+    # Condition B: Padding query attends to padding key
+    pad_attends_pad = (~p_mask_q) & (~p_mask_k)  # Shape [B, Tq, Tk]
+
+    # Combine: True if padding status is compatible (both non-pad OR both pad)
+    mask = non_pad_attends_non_pad | pad_attends_pad  # Shape [B, Tq, Tk]
+
     if is_causal:
         # assert Tq == Tk, "Causal mask requires query and key sequence lengths to be equal"
         causal_mask_2d = torch.tril(torch.ones_like(mask[0], dtype=torch.bool, device=device))  # Shape [B, Tq, Tk]
