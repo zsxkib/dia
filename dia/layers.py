@@ -98,8 +98,8 @@ class RotaryEmbedding(nn.Module):
     def __init__(
         self,
         embedding_dims: int,
-        min_timescale: int = 1,
-        max_timescale: int = 10000,
+        min_timescale: float = 1.0,
+        max_timescale: float = 10000.0,
         dtype: torch.dtype = torch.float32,
     ):
         super().__init__()
@@ -278,10 +278,8 @@ class CrossAttention(nn.Module):
         Xq_BxTxNxH = self.q_proj(Xq)
         Xq_BxNxTxH = Xq_BxTxNxH.transpose(1, 2)
 
-        attn_k: torch.Tensor | None = None
-        attn_v: torch.Tensor | None = None
-
-        attn_k, attn_v = cache.k, cache.v
+        attn_k: torch.Tensor | None = cache.k if cache is not None else None
+        attn_v: torch.Tensor | None = cache.v if cache is not None else None
 
         # Use custom attention for MPS backend, otherwise use optimized PyTorch function
         is_mps = Xq.device.type == "mps" and torch.backends.mps.is_available()
@@ -349,7 +347,7 @@ class SelfAttention(nn.Module):
 
     def __init__(
         self,
-        config: DiaConfig,
+        config: EncoderConfig | DecoderConfig,
         q_embed_dim: int,
         kv_embed_dim: int,
         num_query_heads: int,
@@ -486,8 +484,8 @@ class SelfAttention(nn.Module):
 
         Xq_BxNxTxH = Xq_BxTxNxH.transpose(1, 2)
 
-        attn_k: torch.Tensor | None = None
-        attn_v: torch.Tensor | None = None
+        attn_k: torch.Tensor | None = cache.k if cache is not None else None
+        attn_v: torch.Tensor | None = cache.v if cache is not None else None
 
         Xk_BxKxSxH = Xk_BxSxKxH.transpose(1, 2)  # (B, K, S, H)
         Xv_BxKxSxH = Xv_BxSxKxH.transpose(1, 2)  # (B, K, S, H)
