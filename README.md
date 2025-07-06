@@ -10,7 +10,7 @@
 </p>
 <p align="center">
 <a href="https://huggingface.co/nari-labs/Dia-1.6B-0626"><img src="https://huggingface.co/datasets/huggingface/badges/resolve/main/model-on-hf-lg-dark.svg" alt="Model on HuggingFace" height=42 ></a>
-<a href="https://huggingface.co/spaces/nari-labs/Dia-1.6B-0626"><img src="https://huggingface.co/datasets/huggingface/badges/resolve/main/open-in-hf-spaces-lg-dark.svg" alt="Space on HuggingFace" height=38></a>
+<a href="https://huggingface.co/spaces/nari-labs/Dia-1.6B"><img src="https://huggingface.co/datasets/huggingface/badges/resolve/main/open-in-hf-spaces-lg-dark.svg" alt="Space on HuggingFace" height=38></a>
 </p>
 
 Dia is a 1.6B parameter text to speech model created by Nari Labs.
