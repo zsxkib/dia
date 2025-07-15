@@ -7,6 +7,7 @@
 <a href="https://tally.so/r/meokbo" target="_blank"><img alt="Static Badge" src="https://img.shields.io/badge/Join-Waitlist-white?style=for-the-badge"></a>
 <a href="https://discord.gg/bJq6vjRRKv" target="_blank"><img src="https://img.shields.io/badge/Discord-Join%20Chat-7289DA?logo=discord&style=for-the-badge"></a>
 <a href="https://github.com/nari-labs/dia/blob/main/LICENSE" target="_blank"><img src="https://img.shields.io/badge/License-Apache_2.0-blue.svg?style=for-the-badge" alt="LICENSE"></a>
+<a href="https://replicate.com/zsxkib/dia"><img src="https://replicate.com/zsxkib/dia/badge" alt="Run on Replicate" height=28></a>
 </p>
 <p align="center">
 <a href="https://huggingface.co/nari-labs/Dia-1.6B-0626"><img src="https://huggingface.co/datasets/huggingface/badges/resolve/main/model-on-hf-lg-dark.svg" alt="Model on HuggingFace" height=42 ></a>
